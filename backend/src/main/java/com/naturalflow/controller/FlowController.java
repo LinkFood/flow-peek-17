@@ -2,6 +2,7 @@ package com.naturalflow.controller;
 
 import com.naturalflow.model.OptionFlow;
 import com.naturalflow.service.FlowService;
+import com.naturalflow.service.OpenAIService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -16,9 +17,11 @@ import java.util.stream.Collectors;
 public class FlowController {
 
     private final FlowService flowService;
+    private final OpenAIService openAIService;
 
-    public FlowController(FlowService flowService) {
+    public FlowController(FlowService flowService, OpenAIService openAIService) {
         this.flowService = flowService;
+        this.openAIService = openAIService;
     }
 
     /**
@@ -114,6 +117,43 @@ public class FlowController {
     public ResponseEntity<List<String>> getTickers() {
         List<String> tickers = flowService.getRecentTickers();
         return ResponseEntity.ok(tickers);
+    }
+
+    /**
+     * GET /api/flow/insights?symbol=SPY&windowHours=24
+     * Returns AI-generated insights for a ticker
+     * Uses OpenAI to analyze flow patterns and provide actionable intelligence
+     */
+    @GetMapping("/insights")
+    public ResponseEntity<Map<String, Object>> getInsights(
+            @RequestParam String symbol,
+            @RequestParam(defaultValue = "24") int windowHours) {
+
+        String analysis = openAIService.generateInsights(symbol, windowHours);
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("symbol", symbol.toUpperCase());
+        response.put("windowHours", windowHours);
+        response.put("analysis", analysis);
+        response.put("timestamp", System.currentTimeMillis());
+
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * GET /api/flow/market-insights
+     * Returns AI-generated market-wide insights
+     * Analyzes top tickers and provides overall market sentiment
+     */
+    @GetMapping("/market-insights")
+    public ResponseEntity<Map<String, Object>> getMarketInsights() {
+        String analysis = openAIService.generateMarketInsights();
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("analysis", analysis);
+        response.put("timestamp", System.currentTimeMillis());
+
+        return ResponseEntity.ok(response);
     }
 
     /**

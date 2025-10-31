@@ -132,3 +132,37 @@ export function convertToOptionFlow(apiFlow: OptionFlowResponse, id: string, und
     size: apiFlow.size,
   };
 }
+
+/**
+ * Get AI-generated insights for a ticker
+ * @param symbol - Ticker symbol
+ * @param windowHours - Time window in hours (default: 24)
+ */
+export async function getInsights(symbol: string, windowHours: number = 24): Promise<{
+  symbol: string;
+  windowHours: number;
+  analysis: string;
+  timestamp: number;
+}> {
+  const response = await fetch(
+    `${API_BASE_URL}/insights?symbol=${symbol}&windowHours=${windowHours}`
+  );
+  if (!response.ok) {
+    throw new Error(`Failed to fetch insights: ${response.statusText}`);
+  }
+  return response.json();
+}
+
+/**
+ * Get AI-generated market-wide insights
+ */
+export async function getMarketInsights(): Promise<{
+  analysis: string;
+  timestamp: number;
+}> {
+  const response = await fetch(`${API_BASE_URL}/market-insights`);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch market insights: ${response.statusText}`);
+  }
+  return response.json();
+}

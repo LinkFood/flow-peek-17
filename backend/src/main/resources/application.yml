@@ -12,11 +12,27 @@ spring:
     deserialization:
       fail-on-unknown-properties: false
 
+  task:
+    scheduling:
+      enabled: true
+
 # Security settings
 naturalflow:
   security:
     enabled: false
     api-key: changeme
+
+# Polygon API configuration
+polygon:
+  api:
+    key: ${POLYGON_API_KEY:your-polygon-api-key}
+    enabled: ${POLYGON_ENABLED:false}
+
+# OpenAI API configuration
+openai:
+  api:
+    key: ${OPENAI_API_KEY:your-openai-api-key}
+  model: ${OPENAI_MODEL:gpt-4}
 
 ---
 # Local development profile (H2 in-memory database)
