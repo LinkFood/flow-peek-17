@@ -4,6 +4,7 @@ import { getMag7Heatmap, getMag7Summary, getSmartMoneyTrades, getAggregatedSenti
 import { SentimentTide } from "@/components/SentimentTide";
 import { FlowRiver } from "@/components/FlowRiver";
 import { detectSentimentFlips, getLatestFlip, formatFlipMessage, hasRecentFlip } from "@/lib/sentimentFlip";
+import { generateMarketNarrative } from "@/lib/narrativeEngine";
 
 // Core 9 stocks: MAG7 + SPY + QQQ
 const TRACKED_STOCKS = ["AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "TSLA", "META", "SPY", "QQQ"];
@@ -48,6 +49,16 @@ const Terminal = () => {
 
   const latestFlip = useMemo(() => getLatestFlip(sentimentFlips), [sentimentFlips]);
   const recentFlipDetected = useMemo(() => hasRecentFlip(sentimentFlips, 30), [sentimentFlips]);
+
+  // Generate market narrative
+  const narrative = useMemo(() => {
+    return generateMarketNarrative(
+      summaryData,
+      heatmapData,
+      smartMoneyData?.trades,
+      latestFlip
+    );
+  }, [summaryData, heatmapData, smartMoneyData, latestFlip]);
 
   // Update timestamp
   useEffect(() => {
@@ -282,13 +293,28 @@ const Terminal = () => {
           </div>
 
           <div className="bg-primary/10 border border-primary/30 rounded p-4 mb-4">
-            <div className="text-sm leading-relaxed text-primary font-semibold mb-2">
-              MARKET ANALYSIS
+            <div className="text-sm leading-relaxed text-primary font-semibold mb-2 uppercase tracking-wide">
+              {narrative.headline}
             </div>
-            <div className="text-xs text-muted-foreground">
-              AI narrative system coming next...
+            <div className="text-xs leading-relaxed mt-3">
+              {narrative.summary}
             </div>
           </div>
+
+          {/* Key Points */}
+          {narrative.keyPoints.length > 0 && (
+            <div className="space-y-2">
+              <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                Key Insights
+              </div>
+              {narrative.keyPoints.map((point, idx) => (
+                <div key={idx} className="text-xs leading-relaxed flex gap-2">
+                  <span className="text-primary">•</span>
+                  <span>{point}</span>
+                </div>
+              ))}
+            </div>
+          )}
 
           {selectedStock && heatmapData?.[selectedStock] && (
             <div className="mt-6 pt-6 border-t border-border">
