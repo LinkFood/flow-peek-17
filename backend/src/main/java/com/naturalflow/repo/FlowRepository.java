@@ -88,4 +88,14 @@ public interface FlowRepository extends JpaRepository<OptionFlow, Long> {
      * Find flows for a ticker between two timestamps
      */
     List<OptionFlow> findByUnderlyingAndTsUtcBetween(String underlying, Instant start, Instant end);
+
+    /**
+     * Find flows for a ticker between two timestamps (used for historical comparison)
+     */
+    @Query("SELECT f FROM OptionFlow f WHERE f.underlying = :underlying AND f.tsUtc >= :start AND f.tsUtc <= :end ORDER BY f.tsUtc DESC")
+    List<OptionFlow> findByUnderlyingAndTimeWindowBetween(
+        @Param("underlying") String underlying,
+        @Param("start") Instant start,
+        @Param("end") Instant end
+    );
 }

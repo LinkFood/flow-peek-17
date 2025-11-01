@@ -27,6 +27,8 @@ polygon:
   api:
     key: ${POLYGON_API_KEY:your-polygon-api-key}
     enabled: ${POLYGON_ENABLED:false}
+  websocket:
+    enabled: ${POLYGON_WEBSOCKET_ENABLED:true}
 
 # OpenAI API configuration
 openai:
