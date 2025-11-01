@@ -27,6 +27,12 @@ public class OpenAIService {
 
     @Value("${openai.api.key}")
     private String apiKey;
+    
+    private String getCleanApiKey() {
+        if (apiKey == null) return null;
+        // Remove any whitespace, newlines, quotes that might have snuck in
+        return apiKey.trim().replaceAll("[\\r\\n\\s\"']", "");
+    }
 
     @Value("${openai.model:gpt-4}")
     private String model;
@@ -48,7 +54,8 @@ public class OpenAIService {
      * Generate AI insights for a specific ticker
      */
     public String generateInsights(String symbol, int windowHours) {
-        if (apiKey == null || apiKey.isEmpty() || apiKey.equals("your-openai-api-key")) {
+        String cleanKey = getCleanApiKey();
+        if (cleanKey == null || cleanKey.isEmpty() || cleanKey.equals("your-openai-api-key")) {
             return "OpenAI API key not configured. Set OPENAI_API_KEY environment variable to enable AI insights.";
         }
 
@@ -80,7 +87,8 @@ public class OpenAIService {
      * Generate market-wide insights
      */
     public String generateMarketInsights() {
-        if (apiKey == null || apiKey.isEmpty() || apiKey.equals("your-openai-api-key")) {
+        String cleanKey = getCleanApiKey();
+        if (cleanKey == null || cleanKey.isEmpty() || cleanKey.equals("your-openai-api-key")) {
             return "OpenAI API key not configured.";
         }
 
@@ -208,9 +216,10 @@ public class OpenAIService {
             MediaType.parse("application/json")
         );
 
+        String cleanKey = getCleanApiKey();
         Request request = new Request.Builder()
             .url(OPENAI_API_URL)
-            .header("Authorization", "Bearer " + apiKey)
+            .header("Authorization", "Bearer " + cleanKey)
             .header("Content-Type", "application/json")
             .post(body)
             .build();

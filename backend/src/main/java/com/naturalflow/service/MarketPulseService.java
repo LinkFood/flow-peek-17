@@ -32,18 +32,23 @@ public class MarketPulseService {
      * Get smart money trades (> $100K premium)
      */
     public List<Map<String, Object>> getSmartMoneyTrades(int limit) {
-        Instant cutoff = Instant.now().minus(24, ChronoUnit.HOURS);
+        try {
+            Instant cutoff = Instant.now().minus(24, ChronoUnit.HOURS);
 
-        List<OptionFlow> flows = repository.findByTsUtcAfterAndPremiumGreaterThanEqualOrderByPremiumDesc(
-            cutoff,
-            Constants.SMART_MONEY_THRESHOLD,
-            PageRequest.of(0, limit)
-        );
+            List<OptionFlow> flows = repository.findByTsUtcAfterAndPremiumGreaterThanEqualOrderByPremiumDesc(
+                cutoff,
+                Constants.SMART_MONEY_THRESHOLD,
+                PageRequest.of(0, limit)
+            );
 
-        return flows.stream()
-            .filter(f -> Constants.MAG7_TICKERS.contains(f.getUnderlying()))
-            .map(this::toSmartMoneyDto)
-            .collect(Collectors.toList());
+            return flows.stream()
+                .filter(f -> Constants.MAG7_TICKERS.contains(f.getUnderlying()))
+                .map(this::toSmartMoneyDto)
+                .collect(Collectors.toList());
+        } catch (Exception e) {
+            // Return empty list if no data or database error
+            return new ArrayList<>();
+        }
     }
 
     /**
@@ -51,13 +56,14 @@ public class MarketPulseService {
      * Buckets trades into time intervals for charting
      */
     public Map<String, Object> getFlowTimeline(String symbol, int windowHours, int bucketMinutes) {
-        Instant now = Instant.now();
-        Instant start = now.minus(windowHours, ChronoUnit.HOURS);
+        try {
+            Instant now = Instant.now();
+            Instant start = now.minus(windowHours, ChronoUnit.HOURS);
 
-        List<OptionFlow> flows = repository.findByUnderlyingAndTsUtcAfterOrderByTsUtcAsc(
-            symbol.toUpperCase(),
-            start
-        );
+            List<OptionFlow> flows = repository.findByUnderlyingAndTsUtcAfterOrderByTsUtcAsc(
+                symbol.toUpperCase(),
+                start
+            );
 
         // Create time buckets
         long bucketSizeMillis = bucketMinutes * 60 * 1000L;
@@ -89,13 +95,22 @@ public class MarketPulseService {
             dataPoints.add(point);
         }
 
-        Map<String, Object> response = new HashMap<>();
-        response.put("symbol", symbol.toUpperCase());
-        response.put("windowHours", windowHours);
-        response.put("bucketMinutes", bucketMinutes);
-        response.put("dataPoints", dataPoints);
+            Map<String, Object> response = new HashMap<>();
+            response.put("symbol", symbol.toUpperCase());
+            response.put("windowHours", windowHours);
+            response.put("bucketMinutes", bucketMinutes);
+            response.put("dataPoints", dataPoints);
 
-        return response;
+            return response;
+        } catch (Exception e) {
+            // Return empty timeline if error
+            Map<String, Object> response = new HashMap<>();
+            response.put("symbol", symbol.toUpperCase());
+            response.put("windowHours", windowHours);
+            response.put("bucketMinutes", bucketMinutes);
+            response.put("dataPoints", new ArrayList<>());
+            return response;
+        }
     }
 
     /**
@@ -143,9 +158,10 @@ public class MarketPulseService {
      * Compares recent flow to historical averages
      */
     public List<Map<String, Object>> getUnusualActivity(int limit) {
-        List<Map<String, Object>> unusual = new ArrayList<>();
+        try {
+            List<Map<String, Object>> unusual = new ArrayList<>();
 
-        for (String ticker : Constants.MAG7_TICKERS) {
+            for (String ticker : Constants.MAG7_TICKERS) {
             // Get recent flow (last hour)
             FlowService.FlowSummary recent = flowService.getSummary(ticker, 1);
 
@@ -203,14 +219,18 @@ public class MarketPulseService {
             }
         }
 
-        return unusual.stream()
-            .sorted((a, b) -> {
-                BigDecimal aMax = getMaxMultiple(a);
-                BigDecimal bMax = getMaxMultiple(b);
-                return bMax.compareTo(aMax);
-            })
-            .limit(limit)
-            .collect(Collectors.toList());
+            return unusual.stream()
+                .sorted((a, b) -> {
+                    BigDecimal aMax = getMaxMultiple(a);
+                    BigDecimal bMax = getMaxMultiple(b);
+                    return bMax.compareTo(aMax);
+                })
+                .limit(limit)
+                .collect(Collectors.toList());
+        } catch (Exception e) {
+            // Return empty list if insufficient data or error
+            return new ArrayList<>();
+        }
     }
 
     private BigDecimal getMaxMultiple(Map<String, Object> activity) {

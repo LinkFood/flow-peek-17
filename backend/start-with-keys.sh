@@ -10,9 +10,11 @@ echo ""
 # ===========================================
 
 # Get your Polygon API key from: https://polygon.io/dashboard/api-keys
+# IMPORTANT: No newlines in the key! Copy/paste carefully
 export POLYGON_API_KEY="your-polygon-api-key-here"
 
-# Get your OpenAI API key from: https://platform.openai.com/api-keys
+# Get your OpenAI API key from: https://platform.openai.com/api-keys  
+# IMPORTANT: No newlines in the key! Copy/paste carefully
 export OPENAI_API_KEY="your-openai-api-key-here"
 
 # Enable Polygon polling (set to true to auto-ingest data)
