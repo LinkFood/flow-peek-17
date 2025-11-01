@@ -1,7 +1,7 @@
 // Natural Flow API Client
 // Connects to the Spring Boot backend
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api/flow';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://web-production-43dc4.up.railway.app/api/flow';
 
 export interface OptionFlowResponse {
   tsUtc: string;
@@ -213,7 +213,7 @@ export async function getMarketInsights(): Promise<{
 // Market Pulse API (MAG7 Focus)
 // ===========================
 
-const PULSE_API_URL = import.meta.env.VITE_API_URL?.replace('/api/flow', '/api/pulse') || 'http://localhost:8080/api/pulse';
+const PULSE_API_URL = import.meta.env.VITE_API_URL?.replace('/api/flow', '/api/pulse') || 'https://web-production-43dc4.up.railway.app/api/pulse';
 
 export interface HeatmapData {
   [ticker: string]: {
