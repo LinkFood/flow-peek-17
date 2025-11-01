@@ -1,0 +1,17 @@
+# Ignore frontend files when building Docker image
+node_modules
+src
+public
+dist
+*.log
+.git
+.env*
+
+# Only include backend folder
+!backend/
+
+# Ignore these even in backend
+backend/target
+backend/.mvn
+backend/mvnw
+backend/mvnw.cmd
