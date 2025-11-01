@@ -1,18 +1,28 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useParams } from "react-router-dom";
 import { FilterBar } from "@/components/FilterBar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { formatPremium, formatTime, formatDate } from "@/lib/mockData";
-import { getBuildingFlow, getSummary } from "@/lib/api";
-import { BarChart3, Activity } from "lucide-react";
+import { getBuildingFlow, getSummary, getFlowTimeline } from "@/lib/api";
+import { BarChart3, Activity, TrendingUp } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 const TickerView = () => {
-  const [ticker, setTicker] = useState("QQQ");
+  const { symbol } = useParams<{ symbol: string }>();
+  const [ticker, setTicker] = useState(symbol || "QQQ");
   const [minPremium, setMinPremium] = useState("50000");
   const [timeWindow, setTimeWindow] = useState("1d");
+
+  // Sync ticker with URL param
+  useEffect(() => {
+    if (symbol) {
+      setTicker(symbol);
+    }
+  }, [symbol]);
 
   // Convert time window to minutes for building endpoint
   const lookbackMinutes = timeWindow === "1d" ? 1440 : timeWindow === "1w" ? 10080 : 1440;
@@ -29,6 +39,13 @@ const TickerView = () => {
   const { data: summaryData, isLoading: isLoadingSummary } = useQuery({
     queryKey: ["summary", ticker, timeWindowHours],
     queryFn: () => getSummary(ticker, timeWindowHours),
+    refetchInterval: 30000,
+  });
+
+  // Fetch flow timeline for chart
+  const { data: timelineData, isLoading: isLoadingTimeline } = useQuery({
+    queryKey: ["timeline", ticker, timeWindowHours],
+    queryFn: () => getFlowTimeline(ticker, timeWindowHours, 60),
     refetchInterval: 30000,
   });
 
@@ -169,6 +186,70 @@ const TickerView = () => {
             </CardContent>
           </Card>
         </div>
+
+        {/* Flow Timeline Chart */}
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <TrendingUp className="h-5 w-5 text-primary" />
+              Premium Flow Timeline
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {isLoadingTimeline ? (
+              <Skeleton className="h-64 w-full" />
+            ) : timelineData && timelineData.dataPoints.length > 0 ? (
+              <ResponsiveContainer width="100%" height={300}>
+                <LineChart data={timelineData.dataPoints}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+                  <XAxis
+                    dataKey="timestamp"
+                    tickFormatter={(ts) => new Date(ts).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                    stroke="#888"
+                  />
+                  <YAxis
+                    tickFormatter={(value) => `$${(value / 1000).toFixed(0)}K`}
+                    stroke="#888"
+                  />
+                  <Tooltip
+                    labelFormatter={(ts) => new Date(ts).toLocaleString()}
+                    formatter={(value: number) => [`$${value.toLocaleString()}`, '']}
+                    contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid #333' }}
+                  />
+                  <Legend />
+                  <Line
+                    type="monotone"
+                    dataKey="callPremium"
+                    stroke="#22c55e"
+                    strokeWidth={2}
+                    name="Call Premium"
+                    dot={false}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="putPremium"
+                    stroke="#ef4444"
+                    strokeWidth={2}
+                    name="Put Premium"
+                    dot={false}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="netFlow"
+                    stroke="#3b82f6"
+                    strokeWidth={2}
+                    name="Net Flow"
+                    dot={false}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-64 flex items-center justify-center text-muted-foreground">
+                No timeline data available. Markets may be closed or no data for {ticker}.
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         <div className="bg-card rounded-lg border border-border shadow-md overflow-hidden">
           <div className="p-4 border-b border-border">

@@ -3,6 +3,7 @@ package com.naturalflow.controller;
 import com.naturalflow.config.Constants;
 import com.naturalflow.service.FlowService;
 import com.naturalflow.service.MarketPulseService;
+import com.naturalflow.service.HistoricalDataLoader;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -21,10 +22,12 @@ public class MarketPulseController {
 
     private final MarketPulseService pulseService;
     private final FlowService flowService;
+    private final HistoricalDataLoader dataLoader;
 
-    public MarketPulseController(MarketPulseService pulseService, FlowService flowService) {
+    public MarketPulseController(MarketPulseService pulseService, FlowService flowService, HistoricalDataLoader dataLoader) {
         this.pulseService = pulseService;
         this.flowService = flowService;
+        this.dataLoader = dataLoader;
     }
 
     /**
@@ -133,5 +136,26 @@ public class MarketPulseController {
 
         List<Map<String, Object>> unusual = pulseService.getUnusualActivity(limit);
         return ResponseEntity.ok(unusual);
+    }
+
+    /**
+     * POST /api/pulse/load-historical-data
+     * Load synthetic historical data for MAG7 pattern learning
+     * This generates realistic flow data for the past N days
+     */
+    @PostMapping("/load-historical-data")
+    public ResponseEntity<Map<String, Object>> loadHistoricalData(
+            @RequestParam(defaultValue = "30") int daysBack) {
+
+        try {
+            // Use synthetic data generator for now (real Polygon data requires paid subscription)
+            Map<String, Object> result = dataLoader.generateSyntheticHistoricalData(daysBack);
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            Map<String, Object> error = new HashMap<>();
+            error.put("success", false);
+            error.put("error", e.getMessage());
+            return ResponseEntity.internalServerError().body(error);
+        }
     }
 }

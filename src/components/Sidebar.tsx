@@ -1,9 +1,10 @@
 import { NavLink } from "react-router-dom";
-import { LayoutDashboard, TrendingUp, MessageSquare } from "lucide-react";
+import { LayoutDashboard, TrendingUp, MessageSquare, Activity } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const navItems = [
   { title: "Dashboard", icon: LayoutDashboard, path: "/" },
+  { title: "MAG7 Pulse", icon: Activity, path: "/market-pulse" },
   { title: "Ticker View", icon: TrendingUp, path: "/ticker" },
   { title: "AI Insights", icon: MessageSquare, path: "/ai-insights" },
 ];

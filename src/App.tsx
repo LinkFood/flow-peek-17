@@ -7,6 +7,7 @@ import { Sidebar } from "./components/Sidebar";
 import Dashboard from "./pages/Dashboard";
 import TickerView from "./pages/TickerView";
 import AIInsights from "./pages/AIInsights";
+import MarketPulse from "./pages/MarketPulse";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -21,7 +22,9 @@ const App = () => (
           <Sidebar />
           <Routes>
             <Route path="/" element={<Dashboard />} />
+            <Route path="/market-pulse" element={<MarketPulse />} />
             <Route path="/ticker" element={<TickerView />} />
+            <Route path="/ticker/:symbol" element={<TickerView />} />
             <Route path="/ai-insights" element={<AIInsights />} />
             <Route path="*" element={<NotFound />} />
           </Routes>

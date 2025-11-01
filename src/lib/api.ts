@@ -208,3 +208,160 @@ export async function getMarketInsights(): Promise<{
     throw error;
   }
 }
+
+// ===========================
+// Market Pulse API (MAG7 Focus)
+// ===========================
+
+const PULSE_API_URL = import.meta.env.VITE_API_URL?.replace('/api/flow', '/api/pulse') || 'http://localhost:8080/api/pulse';
+
+export interface HeatmapData {
+  [ticker: string]: {
+    callPremium: number;
+    putPremium: number;
+    netFlow: number;
+    tradeCount: number;
+    sentiment: 'VERY_BULLISH' | 'BULLISH' | 'NEUTRAL' | 'BEARISH' | 'VERY_BEARISH';
+  };
+}
+
+export interface SmartMoneyTrade {
+  timestamp: number;
+  ticker: string;
+  side: 'CALL' | 'PUT';
+  premium: number;
+  strike: number;
+  expiry: string | null;
+  size: number;
+  optionSymbol: string;
+}
+
+export interface TimelineDataPoint {
+  timestamp: number;
+  callPremium: number;
+  putPremium: number;
+  netFlow: number;
+  callCount: number;
+  putCount: number;
+}
+
+export interface TimelineResponse {
+  symbol: string;
+  windowHours: number;
+  bucketMinutes: number;
+  dataPoints: TimelineDataPoint[];
+}
+
+export interface UnusualActivity {
+  ticker: string;
+  recentCallPremium: number;
+  recentPutPremium: number;
+  avgCallPremium: number;
+  avgPutPremium: number;
+  unusualCalls: boolean;
+  unusualPuts: boolean;
+  callMultiple?: number;
+  putMultiple?: number;
+}
+
+export interface Mag7Summary {
+  totalCallPremium: number;
+  totalPutPremium: number;
+  netPremium: number;
+  totalTrades: number;
+  bullishStocks: number;
+  bearishStocks: number;
+  neutralStocks: number;
+  overallSentiment: 'BULLISH' | 'BEARISH';
+  timestamp: number;
+}
+
+/**
+ * Get MAG7 heatmap showing call/put sentiment
+ */
+export async function getMag7Heatmap(windowHours: number = 24): Promise<HeatmapData> {
+  try {
+    const response = await fetch(`${PULSE_API_URL}/heatmap?windowHours=${windowHours}`);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch heatmap: ${response.status}`);
+    }
+    return response.json();
+  } catch (error) {
+    console.error('Error fetching heatmap:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get smart money trades (>$100K premium)
+ */
+export async function getSmartMoneyTrades(limit: number = 50): Promise<{
+  threshold: number;
+  trades: SmartMoneyTrade[];
+  count: number;
+}> {
+  try {
+    const response = await fetch(`${PULSE_API_URL}/smart-money?limit=${limit}`);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch smart money trades: ${response.status}`);
+    }
+    return response.json();
+  } catch (error) {
+    console.error('Error fetching smart money:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get flow timeline for a ticker (for charting)
+ */
+export async function getFlowTimeline(
+  symbol: string,
+  windowHours: number = 24,
+  bucketMinutes: number = 60
+): Promise<TimelineResponse> {
+  try {
+    const response = await fetch(
+      `${PULSE_API_URL}/timeline?symbol=${symbol}&windowHours=${windowHours}&bucketMinutes=${bucketMinutes}`
+    );
+    if (!response.ok) {
+      throw new Error(`Failed to fetch timeline: ${response.status}`);
+    }
+    return response.json();
+  } catch (error) {
+    console.error('Error fetching timeline:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get MAG7 overall summary
+ */
+export async function getMag7Summary(): Promise<Mag7Summary> {
+  try {
+    const response = await fetch(`${PULSE_API_URL}/mag7-summary`);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch MAG7 summary: ${response.status}`);
+    }
+    return response.json();
+  } catch (error) {
+    console.error('Error fetching MAG7 summary:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get unusual activity alerts (3x+ normal volume)
+ */
+export async function getUnusualActivity(limit: number = 10): Promise<UnusualActivity[]> {
+  try {
+    const response = await fetch(`${PULSE_API_URL}/unusual-activity?limit=${limit}`);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch unusual activity: ${response.status}`);
+    }
+    return response.json();
+  } catch (error) {
+    console.error('Error fetching unusual activity:', error);
+    throw error;
+  }
+}
