@@ -110,6 +110,15 @@ public class HistoricalDataLoader {
     }
 
     /**
+     * Clear all existing flow data from the database
+     */
+    public void clearAllData() {
+        log.warn("CLEARING ALL FLOW DATA FROM DATABASE");
+        repository.deleteAll();
+        log.info("All flow data cleared");
+    }
+
+    /**
      * Generate synthetic historical data for testing
      * This creates realistic-looking MAG7 flow data for the past N days
      * WEIGHTED: More recent data gets more flows to populate real-time views

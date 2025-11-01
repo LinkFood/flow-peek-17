@@ -145,9 +145,15 @@ public class MarketPulseController {
      */
     @PostMapping("/load-historical-data")
     public ResponseEntity<Map<String, Object>> loadHistoricalData(
-            @RequestParam(defaultValue = "30") int daysBack) {
+            @RequestParam(defaultValue = "30") int daysBack,
+            @RequestParam(defaultValue = "false") boolean clearFirst) {
 
         try {
+            // Optionally clear existing data first
+            if (clearFirst) {
+                dataLoader.clearAllData();
+            }
+
             // Use synthetic data generator for now (real Polygon data requires paid subscription)
             Map<String, Object> result = dataLoader.generateSyntheticHistoricalData(daysBack);
             return ResponseEntity.ok(result);
