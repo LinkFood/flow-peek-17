@@ -196,9 +196,9 @@ public class OpenAIService {
         requestBody.put("model", model);
 
         ArrayNode messages = requestBody.putArray("messages");
-        ObjectNode message = messages.addObject();
-        message.put("role", "user");
-        message.put("content", prompt);
+        ObjectNode userMessage = messages.addObject();
+        userMessage.put("role", "user");
+        userMessage.put("content", prompt);
 
         requestBody.put("temperature", 0.7);
         requestBody.put("max_tokens", 1000);
