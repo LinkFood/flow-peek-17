@@ -112,6 +112,7 @@ public class HistoricalDataLoader {
     /**
      * Generate synthetic historical data for testing
      * This creates realistic-looking MAG7 flow data for the past N days
+     * WEIGHTED: More recent data gets more flows to populate real-time views
      */
     public Map<String, Object> generateSyntheticHistoricalData(int daysBack) {
         log.info("Generating synthetic historical data for MAG7 stocks, {} days back", daysBack);
@@ -120,14 +121,26 @@ public class HistoricalDataLoader {
         Instant now = Instant.now();
 
         for (String ticker : Constants.MAG7_TICKERS) {
-            // Generate 20-50 flows per day for each ticker
-            int flowsPerDay = 20 + (int)(Math.random() * 30);
-
             for (int day = 0; day < daysBack; day++) {
+                // Weight recent days more heavily
+                // Last 24h: 100-150 flows per ticker
+                // Days 1-7: 30-60 flows per ticker per day
+                // Days 8-30: 15-30 flows per ticker per day
+                int flowsPerDay;
+                if (day == 0) {
+                    flowsPerDay = 100 + (int)(Math.random() * 50); // Last 24h: heavy activity
+                } else if (day < 7) {
+                    flowsPerDay = 30 + (int)(Math.random() * 30);
+                } else {
+                    flowsPerDay = 15 + (int)(Math.random() * 15);
+                }
+
                 for (int i = 0; i < flowsPerDay; i++) {
+                    // Distribute within the day
+                    long hoursAgo = (day * 24) + (long)(Math.random() * 24);
                     OptionFlow flow = generateSyntheticFlow(
                         ticker,
-                        now.minus(day, ChronoUnit.DAYS).minus((long)(Math.random() * 24), ChronoUnit.HOURS)
+                        now.minus(hoursAgo, ChronoUnit.HOURS)
                     );
 
                     repository.save(flow);
