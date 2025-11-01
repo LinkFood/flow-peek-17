@@ -1,0 +1,261 @@
+{
+  "lastUpdated": "2025-11-01T12:00:00Z",
+  "version": "2.0",
+  "phases": {
+    "phase1_foundation": {
+      "name": "Phase 1: Terminal Foundation",
+      "status": "COMPLETE",
+      "completion": 100,
+      "tasks": [
+        {
+          "id": "terminal-ui",
+          "name": "Bloomberg-style terminal UI",
+          "status": "DONE",
+          "file": "src/pages/Terminal.tsx",
+          "completedDate": "2025-10-31"
+        },
+        {
+          "id": "dark-theme",
+          "name": "Dark theme with terminal colors",
+          "status": "DONE",
+          "file": "src/index.css",
+          "completedDate": "2025-10-31"
+        },
+        {
+          "id": "three-panel-layout",
+          "name": "Three-panel layout (stocks/tide/narrative)",
+          "status": "DONE",
+          "file": "src/pages/Terminal.tsx",
+          "completedDate": "2025-10-31"
+        }
+      ]
+    },
+    "phase2_visual_storytelling": {
+      "name": "Phase 2: Visual Storytelling",
+      "status": "COMPLETE",
+      "completion": 100,
+      "tasks": [
+        {
+          "id": "sentiment-tide",
+          "name": "Market Sentiment Tide chart",
+          "status": "DONE",
+          "file": "src/components/SentimentTide.tsx",
+          "completedDate": "2025-11-01"
+        },
+        {
+          "id": "sentiment-flips",
+          "name": "Sentiment flip detection",
+          "status": "DONE",
+          "file": "src/lib/sentimentFlip.ts",
+          "completedDate": "2025-11-01"
+        },
+        {
+          "id": "flow-river",
+          "name": "Flow River animation",
+          "status": "DONE",
+          "file": "src/components/FlowRiver.tsx",
+          "completedDate": "2025-11-01"
+        },
+        {
+          "id": "ai-narrative",
+          "name": "AI narrative engine",
+          "status": "DONE",
+          "file": "src/lib/narrativeEngine.ts",
+          "completedDate": "2025-11-01"
+        }
+      ]
+    },
+    "phase3_real_data": {
+      "name": "Phase 3: Real Data Integration",
+      "status": "IN_PROGRESS",
+      "completion": 60,
+      "tasks": [
+        {
+          "id": "websocket-service",
+          "name": "Polygon WebSocket streaming",
+          "status": "DONE",
+          "file": "backend/src/main/java/com/naturalflow/service/PolygonWebSocketService.java",
+          "completedDate": "2025-11-01"
+        },
+        {
+          "id": "smart-money-service",
+          "name": "Smart money filtering ($50K+, 0-30 DTE)",
+          "status": "DONE",
+          "file": "backend/src/main/java/com/naturalflow/service/SmartMoneyService.java",
+          "completedDate": "2025-11-01"
+        },
+        {
+          "id": "polygon-api-key",
+          "name": "Configure Polygon API key in Railway",
+          "status": "BLOCKED",
+          "blockedReason": "User needs to add POLYGON_API_KEY to Railway",
+          "assignedTo": "USER"
+        },
+        {
+          "id": "clear-synthetic",
+          "name": "Clear synthetic test data",
+          "status": "PENDING",
+          "dependsOn": ["polygon-api-key"]
+        },
+        {
+          "id": "verify-real-data",
+          "name": "Verify real Polygon data flowing",
+          "status": "PENDING",
+          "dependsOn": ["polygon-api-key"]
+        }
+      ]
+    },
+    "phase4_pattern_learning": {
+      "name": "Phase 4: Pattern Learning Intelligence",
+      "status": "NOT_STARTED",
+      "completion": 0,
+      "tasks": [
+        {
+          "id": "historical-backfill",
+          "name": "Backfill 90 days of historical data",
+          "status": "PENDING",
+          "estimatedHours": 8,
+          "dependsOn": ["verify-real-data"]
+        },
+        {
+          "id": "strike-concentration-endpoint",
+          "name": "Expose strike concentration REST API",
+          "status": "PENDING",
+          "estimatedHours": 2,
+          "notes": "Logic exists in SmartMoneyService, needs controller endpoint"
+        },
+        {
+          "id": "openai-real-time",
+          "name": "Integrate OpenAI for real-time strike analysis",
+          "status": "PENDING",
+          "estimatedHours": 4,
+          "notes": "Call OpenAI on each smart money trade"
+        },
+        {
+          "id": "pattern-detection",
+          "name": "Build pattern detection (repeated setups)",
+          "status": "PENDING",
+          "estimatedHours": 12
+        },
+        {
+          "id": "outcome-tracking",
+          "name": "Track outcomes (flag → result validation)",
+          "status": "PENDING",
+          "estimatedHours": 16
+        }
+      ]
+    },
+    "phase5_historical_mode": {
+      "name": "Phase 5: Historical Playback",
+      "status": "NOT_STARTED",
+      "completion": 0,
+      "tasks": [
+        {
+          "id": "date-picker",
+          "name": "Add date picker UI component",
+          "status": "PENDING",
+          "estimatedHours": 4
+        },
+        {
+          "id": "historical-query-api",
+          "name": "Backend API for historical date queries",
+          "status": "PENDING",
+          "estimatedHours": 6
+        },
+        {
+          "id": "playback-mode",
+          "name": "Time-travel mode (replay past days)",
+          "status": "PENDING",
+          "estimatedHours": 8
+        }
+      ]
+    },
+    "phase6_polish": {
+      "name": "Phase 6: Polish & Enhancement",
+      "status": "NOT_STARTED",
+      "completion": 0,
+      "tasks": [
+        {
+          "id": "keyboard-shortcuts",
+          "name": "Keyboard shortcuts (1-9 for stocks)",
+          "status": "PENDING",
+          "estimatedHours": 2
+        },
+        {
+          "id": "activity-glow",
+          "name": "Glow effects for high activity stocks",
+          "status": "PENDING",
+          "estimatedHours": 3
+        },
+        {
+          "id": "timeline-fix",
+          "name": "Fix timeline endpoint bug",
+          "status": "PENDING",
+          "estimatedHours": 2,
+          "bug": true
+        }
+      ]
+    }
+  },
+  "blockers": [
+    {
+      "id": "no-polygon-key",
+      "severity": "CRITICAL",
+      "description": "POLYGON_API_KEY not set in Railway",
+      "impact": "No real data flowing, still using synthetic test data",
+      "assignedTo": "USER",
+      "resolution": "Add POLYGON_API_KEY to Railway environment variables"
+    }
+  ],
+  "bugs": [
+    {
+      "id": "timeline-empty",
+      "severity": "MEDIUM",
+      "description": "Timeline endpoint returns empty array",
+      "file": "backend/src/main/java/com/naturalflow/service/MarketPulseService.java",
+      "impact": "Sentiment tide may have gaps",
+      "status": "OPEN"
+    },
+    {
+      "id": "smart-money-empty",
+      "severity": "LOW",
+      "description": "Smart money endpoint returns 0 trades",
+      "impact": "Flow river shows 'waiting for flow'",
+      "status": "KNOWN",
+      "notes": "Will resolve when real Polygon data flows"
+    }
+  ],
+  "technicalDebt": [
+    {
+      "id": "rest-polling-deprecated",
+      "description": "PolygonService.java REST polling still enabled",
+      "recommendation": "Disable when WebSocket confirmed working",
+      "priority": "LOW"
+    },
+    {
+      "id": "no-data-retention",
+      "description": "Database will grow forever",
+      "recommendation": "Add retention policy (keep 90 days hot, archive rest)",
+      "priority": "MEDIUM"
+    },
+    {
+      "id": "no-monitoring",
+      "description": "No alerts if WebSocket disconnects",
+      "recommendation": "Add health check endpoint and monitoring",
+      "priority": "HIGH"
+    }
+  ],
+  "nextSession": {
+    "priority": "Add POLYGON_API_KEY to Railway to start real data flow",
+    "checkFirst": [
+      ".claude/PROJECT_ETHOS.md",
+      "STATUS.md",
+      ".claude/TASK_TRACKER.json"
+    ],
+    "askUser": [
+      "Did you add the Polygon API key to Railway yet?",
+      "What's the priority for today's work?",
+      "Any issues or bugs you've noticed?"
+    ]
+  }
+}
