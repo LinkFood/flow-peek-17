@@ -1,0 +1,279 @@
+import { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { getMag7Heatmap, getMag7Summary, getSmartMoneyTrades } from "@/lib/api";
+
+// Core 9 stocks: MAG7 + SPY + QQQ
+const TRACKED_STOCKS = ["AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "TSLA", "META", "SPY", "QQQ"];
+
+const Terminal = () => {
+  const [selectedStock, setSelectedStock] = useState<string | null>(null);
+  const [lastUpdate, setLastUpdate] = useState(new Date());
+
+  // Fetch MAG7 heatmap data
+  const { data: heatmapData } = useQuery({
+    queryKey: ["heatmap-terminal"],
+    queryFn: () => getMag7Heatmap(24),
+    refetchInterval: 10000,
+  });
+
+  // Fetch MAG7 summary
+  const { data: summaryData } = useQuery({
+    queryKey: ["summary-terminal"],
+    queryFn: getMag7Summary,
+    refetchInterval: 10000,
+  });
+
+  // Fetch smart money trades
+  const { data: smartMoneyData } = useQuery({
+    queryKey: ["smart-money-terminal"],
+    queryFn: () => getSmartMoneyTrades(50),
+    refetchInterval: 10000,
+  });
+
+  // Update timestamp
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setLastUpdate(new Date());
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const getTimeSinceUpdate = () => {
+    const seconds = Math.floor((new Date().getTime() - lastUpdate.getTime()) / 1000);
+    return seconds < 60 ? `${seconds}s ago` : `${Math.floor(seconds / 60)}m ago`;
+  };
+
+  return (
+    <div className="flex-1 flex flex-col min-h-screen bg-background text-foreground">
+      {/* Live Status Bar */}
+      <div className="h-12 bg-card border-b border-border flex items-center justify-between px-6">
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+            <span className="text-sm font-bold text-red-500">LIVE</span>
+          </div>
+          <div className="text-sm text-muted-foreground">|</div>
+          <span className="text-sm font-semibold">NATURAL FLOW TERMINAL</span>
+        </div>
+
+        <div className="flex items-center gap-6 text-sm">
+          <div className="text-muted-foreground">
+            Last Update: <span className="text-foreground">{getTimeSinceUpdate()}</span>
+          </div>
+          {summaryData && (
+            <>
+              <div className="text-muted-foreground">|</div>
+              <div className="text-muted-foreground">
+                Total Trades: <span className="text-foreground font-mono">{summaryData.totalTrades}</span>
+              </div>
+              <div className="text-muted-foreground">|</div>
+              <div className={summaryData.netPremium > 0 ? "text-green-400" : "text-red-400"}>
+                Net Flow: <span className="font-mono">${(summaryData.netPremium / 1000000).toFixed(1)}M</span>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Main Terminal Layout */}
+      <div className="flex-1 flex">
+        {/* Left Sidebar - Stock Selector */}
+        <div className="w-48 bg-card border-r border-border p-4">
+          <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">
+            Tracked Stocks
+          </div>
+
+          <div className="space-y-1">
+            {TRACKED_STOCKS.map((ticker) => {
+              const data = heatmapData?.[ticker];
+              const isSelected = selectedStock === ticker;
+
+              return (
+                <button
+                  key={ticker}
+                  onClick={() => setSelectedStock(isSelected ? null : ticker)}
+                  className={`w-full text-left px-3 py-2 rounded text-sm font-mono transition-all ${
+                    isSelected
+                      ? "bg-primary/20 text-primary border border-primary/50"
+                      : "hover:bg-secondary text-foreground"
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold">{ticker}</span>
+                    {data && (
+                      <span className={`text-xs ${data.netFlow > 0 ? "text-green-400" : "text-red-400"}`}>
+                        {data.netFlow > 0 ? "↑" : "↓"}
+                      </span>
+                    )}
+                  </div>
+                  {data && (
+                    <div className="text-xs text-muted-foreground mt-0.5">
+                      {data.tradeCount} trades
+                    </div>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="mt-6 pt-6 border-t border-border">
+            <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+              Alerts
+            </div>
+            <div className="text-xs text-muted-foreground">
+              No active alerts
+            </div>
+          </div>
+        </div>
+
+        {/* Center - Main Content Area */}
+        <div className="flex-1 flex flex-col">
+          {/* Market Sentiment Tide - Placeholder for now */}
+          <div className="h-80 bg-card border-b border-border p-6">
+            <div className="h-full flex items-center justify-center">
+              <div className="text-center">
+                <div className="text-2xl font-bold mb-2">🌊 MARKET SENTIMENT TIDE</div>
+                <div className="text-muted-foreground">
+                  Stacked area chart coming next...
+                </div>
+                {summaryData && (
+                  <div className="mt-4 text-sm">
+                    <div className={summaryData.overallSentiment === "BULLISH" ? "text-green-400" : "text-red-400"}>
+                      Overall: {summaryData.overallSentiment}
+                    </div>
+                    <div className="text-muted-foreground mt-1">
+                      {summaryData.bullishStocks} bullish • {summaryData.neutralStocks} neutral • {summaryData.bearishStocks} bearish
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Flow River + Table Hybrid */}
+          <div className="flex-1 p-6 space-y-4">
+            <div className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+              Institutional Flow River
+            </div>
+
+            {/* Flow River - 60% space */}
+            <div className="h-64 bg-card border border-border rounded p-4">
+              <div className="h-full flex items-center justify-center text-muted-foreground">
+                Flow river animation coming next...
+              </div>
+            </div>
+
+            {/* Flow Table - 40% space */}
+            <div className="bg-card border border-border rounded">
+              <div className="p-4 border-b border-border">
+                <div className="text-sm font-semibold">Recent Institutional Trades ($100K+)</div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="border-b border-border">
+                    <tr className="text-muted-foreground text-xs uppercase">
+                      <th className="text-left p-3 font-medium">Time</th>
+                      <th className="text-left p-3 font-medium">Ticker</th>
+                      <th className="text-left p-3 font-medium">Side</th>
+                      <th className="text-right p-3 font-medium">Premium</th>
+                      <th className="text-right p-3 font-medium">Strike</th>
+                      <th className="text-left p-3 font-medium">Expiry</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {smartMoneyData && smartMoneyData.trades.length > 0 ? (
+                      smartMoneyData.trades.slice(0, 10).map((trade, idx) => (
+                        <tr key={idx} className="border-b border-border/50 hover:bg-secondary/30">
+                          <td className="p-3 font-mono text-xs">
+                            {new Date(trade.timestamp).toLocaleTimeString('en-US', {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                              second: '2-digit'
+                            })}
+                          </td>
+                          <td className="p-3 font-bold">{trade.ticker}</td>
+                          <td className="p-3">
+                            <span className={`px-2 py-0.5 rounded text-xs font-semibold ${
+                              trade.side === "CALL"
+                                ? "bg-green-500/20 text-green-400"
+                                : "bg-red-500/20 text-red-400"
+                            }`}>
+                              {trade.side}
+                            </span>
+                          </td>
+                          <td className="p-3 text-right font-mono text-primary font-semibold">
+                            ${(trade.premium / 1000).toFixed(0)}K
+                          </td>
+                          <td className="p-3 text-right font-mono">${trade.strike}</td>
+                          <td className="p-3 font-mono text-xs">{trade.expiry || 'N/A'}</td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={6} className="p-8 text-center text-muted-foreground">
+                          No smart money trades detected yet. Markets may be closed.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Right Sidebar - What's Happening */}
+        <div className="w-80 bg-card border-l border-border p-4">
+          <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">
+            What's Happening
+          </div>
+
+          <div className="bg-primary/10 border border-primary/30 rounded p-4 mb-4">
+            <div className="text-sm leading-relaxed">
+              <span className="text-primary font-semibold">💡</span> Market analysis loading...
+            </div>
+            <div className="text-xs text-muted-foreground mt-2">
+              AI narrative coming next
+            </div>
+          </div>
+
+          {selectedStock && heatmapData?.[selectedStock] && (
+            <div className="mt-6 pt-6 border-t border-border">
+              <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">
+                {selectedStock} Analysis
+              </div>
+
+              <div className="space-y-3">
+                <div>
+                  <div className="text-xs text-muted-foreground mb-1">Net Flow (24h)</div>
+                  <div className={`text-2xl font-bold font-mono ${
+                    heatmapData[selectedStock].netFlow > 0 ? "text-green-400" : "text-red-400"
+                  }`}>
+                    ${(heatmapData[selectedStock].netFlow / 1000000).toFixed(2)}M
+                  </div>
+                </div>
+
+                <div>
+                  <div className="text-xs text-muted-foreground mb-1">Sentiment</div>
+                  <div className="text-lg font-semibold">
+                    {heatmapData[selectedStock].sentiment.replace('_', ' ')}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="text-xs text-muted-foreground mb-1">Trade Count</div>
+                  <div className="text-lg font-semibold font-mono">
+                    {heatmapData[selectedStock].tradeCount}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default Terminal;

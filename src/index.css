@@ -8,49 +8,58 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    --background: 210 17% 98%;
-    --foreground: 215 25% 10%;
+    /* Terminal Dark Theme - Bloomberg Style */
+    --background: 217 33% 8%;        /* Deep space black #0a0e14 */
+    --foreground: 210 20% 92%;       /* Cool white #e6edf3 */
 
-    --card: 0 0% 100%;
-    --card-foreground: 215 25% 10%;
+    --card: 217 25% 11%;             /* Charcoal panels #141922 */
+    --card-foreground: 210 20% 92%;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 215 25% 10%;
+    --popover: 217 25% 11%;
+    --popover-foreground: 210 20% 92%;
 
-    --primary: 213 94% 45%;
-    --primary-foreground: 0 0% 100%;
+    --primary: 190 100% 50%;         /* Electric cyan #00d4ff */
+    --primary-foreground: 217 33% 8%;
 
-    --secondary: 210 17% 95%;
-    --secondary-foreground: 215 25% 10%;
+    --secondary: 217 20% 18%;        /* Steel grey #1e2530 */
+    --secondary-foreground: 210 20% 92%;
 
-    --muted: 210 17% 95%;
-    --muted-foreground: 215 15% 45%;
+    --muted: 217 20% 18%;
+    --muted-foreground: 215 10% 50%; /* Grey #6e7681 */
 
-    --accent: 210 17% 95%;
-    --accent-foreground: 215 25% 10%;
+    --accent: 190 100% 50%;          /* Cyan accent */
+    --accent-foreground: 217 33% 8%;
 
-    --destructive: 0 72% 51%;
+    --destructive: 340 90% 65%;      /* Hot magenta #ff0066 */
     --destructive-foreground: 0 0% 100%;
 
-    --border: 215 20% 90%;
-    --input: 215 20% 90%;
-    --ring: 213 94% 45%;
+    --border: 217 20% 18%;           /* Subtle borders */
+    --input: 217 20% 18%;
+    --ring: 190 100% 50%;
 
-    --radius: 0.5rem;
+    --radius: 0.25rem;               /* Tighter corners */
 
-    --sidebar-background: 215 25% 97%;
-    --sidebar-foreground: 215 25% 15%;
-    --sidebar-primary: 213 94% 45%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 210 17% 93%;
-    --sidebar-accent-foreground: 215 25% 15%;
-    --sidebar-border: 215 20% 88%;
-    --sidebar-ring: 213 94% 45%;
+    /* Sidebar matches terminal */
+    --sidebar-background: 217 33% 8%;
+    --sidebar-foreground: 210 20% 92%;
+    --sidebar-primary: 190 100% 50%;
+    --sidebar-primary-foreground: 217 33% 8%;
+    --sidebar-accent: 217 25% 11%;
+    --sidebar-accent-foreground: 210 20% 92%;
+    --sidebar-border: 217 20% 18%;
+    --sidebar-ring: 190 100% 50%;
 
-    /* Trading specific colors */
-    --call-color: 142 76% 36%;
-    --put-color: 0 72% 51%;
-    --neutral-color: 0 0% 53%;
+    /* Trading specific colors - Financial terminal palette */
+    --call-color: 142 76% 55%;       /* Neon green #00ff9d */
+    --put-color: 340 90% 65%;        /* Hot magenta #ff0066 */
+    --warning-color: 38 100% 50%;    /* Amber #ffaa00 */
+    --neutral-color: 215 10% 50%;    /* Grey #6e7681 */
+
+    /* Sentiment intensity levels */
+    --bullish-strong: 142 76% 55%;
+    --bullish-weak: 142 76% 35%;
+    --bearish-strong: 340 90% 65%;
+    --bearish-weak: 340 90% 45%;
 
     /* Shadows */
     --shadow-sm: 0 1px 2px 0 hsl(215 25% 10% / 0.05);
