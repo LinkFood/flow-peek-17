@@ -16,7 +16,7 @@ export POLYGON_API_KEY="your-polygon-api-key-here"
 export OPENAI_API_KEY="your-openai-api-key-here"
 
 # Enable Polygon polling (set to true to auto-ingest data)
-export POLYGON_ENABLED="false"  # Change to "true" when ready
+export POLYGON_ENABLED="true"  # Now enabled - will poll every 5 seconds!
 
 # Optional: Choose OpenAI model (gpt-4 is more expensive but better)
 export OPENAI_MODEL="gpt-4"  # or "gpt-3.5-turbo"
