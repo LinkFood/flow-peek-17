@@ -1,7 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { getMag7Heatmap, getMag7Summary, getSmartMoneyTrades, getAggregatedSentimentTide } from "@/lib/api";
 import { SentimentTide } from "@/components/SentimentTide";
+import { detectSentimentFlips, getLatestFlip, formatFlipMessage, hasRecentFlip } from "@/lib/sentimentFlip";
 
 // Core 9 stocks: MAG7 + SPY + QQQ
 const TRACKED_STOCKS = ["AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "TSLA", "META", "SPY", "QQQ"];
@@ -37,6 +38,15 @@ const Terminal = () => {
     queryFn: () => getAggregatedSentimentTide(TRACKED_STOCKS, 24, 60),
     refetchInterval: 10000,
   });
+
+  // Detect sentiment flips from tide data
+  const sentimentFlips = useMemo(() => {
+    if (!tideData || tideData.length === 0) return [];
+    return detectSentimentFlips(tideData, 120); // Last 2 hours
+  }, [tideData]);
+
+  const latestFlip = useMemo(() => getLatestFlip(sentimentFlips), [sentimentFlips]);
+  const recentFlipDetected = useMemo(() => hasRecentFlip(sentimentFlips, 30), [sentimentFlips]);
 
   // Update timestamp
   useEffect(() => {
@@ -126,11 +136,36 @@ const Terminal = () => {
 
           <div className="mt-6 pt-6 border-t border-border">
             <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
-              Alerts
+              Sentiment Alerts
             </div>
-            <div className="text-xs text-muted-foreground">
-              No active alerts
-            </div>
+
+            {latestFlip && recentFlipDetected ? (
+              <div className={`text-xs p-2 rounded border ${
+                latestFlip.toSentiment === 'BULLISH'
+                  ? 'bg-green-500/10 border-green-500/30 text-green-400'
+                  : 'bg-red-500/10 border-red-500/30 text-red-400'
+              }`}>
+                <div className="font-semibold mb-1 uppercase">
+                  {latestFlip.significance} FLIP DETECTED
+                </div>
+                <div className="text-xs leading-relaxed">
+                  {formatFlipMessage(latestFlip)}
+                </div>
+              </div>
+            ) : (
+              <div className="text-xs text-muted-foreground">
+                {sentimentFlips.length > 0
+                  ? `Last flip: ${formatFlipMessage(latestFlip!)}`
+                  : 'No sentiment flips detected'
+                }
+              </div>
+            )}
+
+            {sentimentFlips.length > 1 && (
+              <div className="mt-2 text-xs text-muted-foreground">
+                {sentimentFlips.length} flips in last 2h
+              </div>
+            )}
           </div>
         </div>
 
