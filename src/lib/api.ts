@@ -48,11 +48,18 @@ export interface BuildingFlowResponse {
  * @param limit - Number of events to return (default: 50)
  */
 export async function getLatestFlow(symbol: string, limit: number = 50): Promise<LatestFlowResponse> {
-  const response = await fetch(`${API_BASE_URL}/latest?symbol=${symbol}&limit=${limit}`);
-  if (!response.ok) {
-    throw new Error(`Failed to fetch latest flow: ${response.statusText}`);
+  try {
+    const response = await fetch(`${API_BASE_URL}/latest?symbol=${symbol}&limit=${limit}`);
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('API Error:', response.status, errorText);
+      throw new Error(`Failed to fetch latest flow: ${response.status} ${response.statusText}`);
+    }
+    return response.json();
+  } catch (error) {
+    console.error('Network error fetching latest flow:', error);
+    throw error;
   }
-  return response.json();
 }
 
 /**
@@ -61,11 +68,18 @@ export async function getLatestFlow(symbol: string, limit: number = 50): Promise
  * @param windowHours - Time window in hours (default: 24)
  */
 export async function getSummary(symbol: string, windowHours: number = 24): Promise<SummaryResponse> {
-  const response = await fetch(`${API_BASE_URL}/summary?symbol=${symbol}&windowHours=${windowHours}`);
-  if (!response.ok) {
-    throw new Error(`Failed to fetch summary: ${response.statusText}`);
+  try {
+    const response = await fetch(`${API_BASE_URL}/summary?symbol=${symbol}&windowHours=${windowHours}`);
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('API Error:', response.status, errorText);
+      throw new Error(`Failed to fetch summary: ${response.status} ${response.statusText}`);
+    }
+    return response.json();
+  } catch (error) {
+    console.error('Network error fetching summary:', error);
+    throw error;
   }
-  return response.json();
 }
 
 /**
@@ -80,24 +94,38 @@ export async function getBuildingFlow(
   minPremium: number = 50000,
   lookbackMinutes: number = 120
 ): Promise<BuildingFlowResponse[]> {
-  const response = await fetch(
-    `${API_BASE_URL}/building?symbol=${symbol}&minPremium=${minPremium}&lookbackMinutes=${lookbackMinutes}`
-  );
-  if (!response.ok) {
-    throw new Error(`Failed to fetch building flow: ${response.statusText}`);
+  try {
+    const response = await fetch(
+      `${API_BASE_URL}/building?symbol=${symbol}&minPremium=${minPremium}&lookbackMinutes=${lookbackMinutes}`
+    );
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('API Error:', response.status, errorText);
+      throw new Error(`Failed to fetch building flow: ${response.status} ${response.statusText}`);
+    }
+    return response.json();
+  } catch (error) {
+    console.error('Network error fetching building flow:', error);
+    throw error;
   }
-  return response.json();
 }
 
 /**
  * Get list of available tickers (seen in last 24h)
  */
 export async function getTickers(): Promise<string[]> {
-  const response = await fetch(`${API_BASE_URL}/tickers`);
-  if (!response.ok) {
-    throw new Error(`Failed to fetch tickers: ${response.statusText}`);
+  try {
+    const response = await fetch(`${API_BASE_URL}/tickers`);
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('API Error:', response.status, errorText);
+      throw new Error(`Failed to fetch tickers: ${response.status} ${response.statusText}`);
+    }
+    return response.json();
+  } catch (error) {
+    console.error('Network error fetching tickers:', error);
+    throw error;
   }
-  return response.json();
 }
 
 /**
@@ -144,13 +172,20 @@ export async function getInsights(symbol: string, windowHours: number = 24): Pro
   analysis: string;
   timestamp: number;
 }> {
-  const response = await fetch(
-    `${API_BASE_URL}/insights?symbol=${symbol}&windowHours=${windowHours}`
-  );
-  if (!response.ok) {
-    throw new Error(`Failed to fetch insights: ${response.statusText}`);
+  try {
+    const response = await fetch(
+      `${API_BASE_URL}/insights?symbol=${symbol}&windowHours=${windowHours}`
+    );
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('API Error:', response.status, errorText);
+      throw new Error(`Failed to fetch insights: ${response.status} ${response.statusText}`);
+    }
+    return response.json();
+  } catch (error) {
+    console.error('Network error fetching insights:', error);
+    throw error;
   }
-  return response.json();
 }
 
 /**
@@ -160,9 +195,16 @@ export async function getMarketInsights(): Promise<{
   analysis: string;
   timestamp: number;
 }> {
-  const response = await fetch(`${API_BASE_URL}/market-insights`);
-  if (!response.ok) {
-    throw new Error(`Failed to fetch market insights: ${response.statusText}`);
+  try {
+    const response = await fetch(`${API_BASE_URL}/market-insights`);
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('API Error:', response.status, errorText);
+      throw new Error(`Failed to fetch market insights: ${response.status} ${response.statusText}`);
+    }
+    return response.json();
+  } catch (error) {
+    console.error('Network error fetching market insights:', error);
+    throw error;
   }
-  return response.json();
 }
