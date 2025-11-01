@@ -6,8 +6,9 @@ import { FlowRiver } from "@/components/FlowRiver";
 import { detectSentimentFlips, getLatestFlip, formatFlipMessage, hasRecentFlip } from "@/lib/sentimentFlip";
 import { generateMarketNarrative } from "@/lib/narrativeEngine";
 
-// Core 9 stocks: MAG7 + SPY + QQQ
-const TRACKED_STOCKS = ["AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "TSLA", "META", "SPY", "QQQ"];
+// MAG7 stocks (backend currently only supports these 7)
+// TODO: Add SPY and QQQ when backend data is available
+const TRACKED_STOCKS = ["AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "TSLA", "META"];
 
 const Terminal = () => {
   const [selectedStock, setSelectedStock] = useState<string | null>(null);
@@ -191,7 +192,7 @@ const Terminal = () => {
                   Market Sentiment Tide
                 </div>
                 <div className="text-xs text-muted-foreground mt-1">
-                  Aggregated call/put flow across MAG7 + SPY + QQQ
+                  Aggregated call/put flow across MAG7 stocks
                 </div>
               </div>
               {summaryData && (
