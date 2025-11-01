@@ -365,3 +365,61 @@ export async function getUnusualActivity(limit: number = 10): Promise<UnusualAct
     throw error;
   }
 }
+
+/**
+ * Get aggregated sentiment tide data for multiple stocks
+ * Combines timeline data from all stocks into single tide view
+ */
+export async function getAggregatedSentimentTide(
+  symbols: string[],
+  windowHours: number = 24,
+  bucketMinutes: number = 60
+): Promise<{
+  timestamp: number;
+  callPremium: number;
+  putPremium: number;
+  netFlow: number;
+}[]> {
+  try {
+    // Fetch timeline for each symbol in parallel
+    const timelinePromises = symbols.map(symbol =>
+      getFlowTimeline(symbol, windowHours, bucketMinutes)
+    );
+
+    const timelines = await Promise.all(timelinePromises);
+
+    // Aggregate by timestamp
+    const aggregatedMap = new Map<number, {
+      callPremium: number;
+      putPremium: number;
+    }>();
+
+    timelines.forEach(timeline => {
+      timeline.dataPoints.forEach(point => {
+        const existing = aggregatedMap.get(point.timestamp) || {
+          callPremium: 0,
+          putPremium: 0
+        };
+
+        aggregatedMap.set(point.timestamp, {
+          callPremium: existing.callPremium + point.callPremium,
+          putPremium: existing.putPremium + point.putPremium
+        });
+      });
+    });
+
+    // Convert to array and calculate net flow
+    return Array.from(aggregatedMap.entries())
+      .map(([timestamp, data]) => ({
+        timestamp,
+        callPremium: data.callPremium,
+        putPremium: data.putPremium,
+        netFlow: data.callPremium - data.putPremium
+      }))
+      .sort((a, b) => a.timestamp - b.timestamp);
+
+  } catch (error) {
+    console.error('Error fetching aggregated sentiment tide:', error);
+    return [];
+  }
+}

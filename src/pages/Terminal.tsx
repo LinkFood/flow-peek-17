@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { getMag7Heatmap, getMag7Summary, getSmartMoneyTrades } from "@/lib/api";
+import { getMag7Heatmap, getMag7Summary, getSmartMoneyTrades, getAggregatedSentimentTide } from "@/lib/api";
+import { SentimentTide } from "@/components/SentimentTide";
 
 // Core 9 stocks: MAG7 + SPY + QQQ
 const TRACKED_STOCKS = ["AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "TSLA", "META", "SPY", "QQQ"];
@@ -27,6 +28,13 @@ const Terminal = () => {
   const { data: smartMoneyData } = useQuery({
     queryKey: ["smart-money-terminal"],
     queryFn: () => getSmartMoneyTrades(50),
+    refetchInterval: 10000,
+  });
+
+  // Fetch aggregated sentiment tide data
+  const { data: tideData } = useQuery({
+    queryKey: ["sentiment-tide"],
+    queryFn: () => getAggregatedSentimentTide(TRACKED_STOCKS, 24, 60),
     refetchInterval: 10000,
   });
 
@@ -128,26 +136,30 @@ const Terminal = () => {
 
         {/* Center - Main Content Area */}
         <div className="flex-1 flex flex-col">
-          {/* Market Sentiment Tide - Placeholder for now */}
+          {/* Market Sentiment Tide */}
           <div className="h-80 bg-card border-b border-border p-6">
-            <div className="h-full flex items-center justify-center">
-              <div className="text-center">
-                <div className="text-2xl font-bold mb-2">🌊 MARKET SENTIMENT TIDE</div>
-                <div className="text-muted-foreground">
-                  Stacked area chart coming next...
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <div className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                  Market Sentiment Tide
                 </div>
-                {summaryData && (
-                  <div className="mt-4 text-sm">
-                    <div className={summaryData.overallSentiment === "BULLISH" ? "text-green-400" : "text-red-400"}>
-                      Overall: {summaryData.overallSentiment}
-                    </div>
-                    <div className="text-muted-foreground mt-1">
-                      {summaryData.bullishStocks} bullish • {summaryData.neutralStocks} neutral • {summaryData.bearishStocks} bearish
-                    </div>
-                  </div>
-                )}
+                <div className="text-xs text-muted-foreground mt-1">
+                  Aggregated call/put flow across MAG7 + SPY + QQQ
+                </div>
               </div>
+              {summaryData && (
+                <div className="text-right">
+                  <div className={`text-sm font-bold ${summaryData.overallSentiment === "BULLISH" ? "text-green-400" : "text-red-400"}`}>
+                    {summaryData.overallSentiment}
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-0.5">
+                    {summaryData.bullishStocks}B • {summaryData.neutralStocks}N • {summaryData.bearishStocks}B
+                  </div>
+                </div>
+              )}
             </div>
+
+            <SentimentTide data={tideData || []} height={260} />
           </div>
 
           {/* Flow River + Table Hybrid */}
@@ -230,11 +242,11 @@ const Terminal = () => {
           </div>
 
           <div className="bg-primary/10 border border-primary/30 rounded p-4 mb-4">
-            <div className="text-sm leading-relaxed">
-              <span className="text-primary font-semibold">💡</span> Market analysis loading...
+            <div className="text-sm leading-relaxed text-primary font-semibold mb-2">
+              MARKET ANALYSIS
             </div>
-            <div className="text-xs text-muted-foreground mt-2">
-              AI narrative coming next
+            <div className="text-xs text-muted-foreground">
+              AI narrative system coming next...
             </div>
           </div>
 
