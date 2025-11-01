@@ -294,6 +294,26 @@ kill -9 <PID>
 4. ✅ OpenAI analyzes patterns
 5. ✅ Returns professional insights
 
+## 🚂 Cloud Deployment (Recommended)
+
+**Don't want to run locally?** Deploy to Railway for free cloud hosting!
+
+See **[RAILWAY_DEPLOYMENT.md](./RAILWAY_DEPLOYMENT.md)** for step-by-step instructions.
+
+**Quick Start:**
+1. Sign up at https://railway.app (free tier, no credit card)
+2. Deploy from your GitHub repo
+3. Add PostgreSQL database
+4. Set environment variables (API keys)
+5. Get your public URL in ~20 minutes
+
+Benefits:
+- ✅ No local backend needed
+- ✅ 24/7 uptime with free tier
+- ✅ Auto-deploys from GitHub
+- ✅ Built-in PostgreSQL
+- ✅ Easy environment variable management
+
 ## 🎓 Next Steps
 
 ### 1. Optimize Polling
@@ -313,10 +333,6 @@ Add CSV/Excel export functionality
 
 ### 5. Add Charts
 Use Recharts to visualize flow over time
-
-### 6. Deploy
-- Backend: Railway.app, Render, Heroku
-- Frontend: Vercel, Netlify, or Lovable's deployment
 
 ## 🔐 Security Notes
 
