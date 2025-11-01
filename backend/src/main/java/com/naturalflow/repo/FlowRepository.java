@@ -69,4 +69,23 @@ public interface FlowRepository extends JpaRepository<OptionFlow, Long> {
      */
     @Query("SELECT DISTINCT f.underlying FROM OptionFlow f WHERE f.tsUtc >= :startTime ORDER BY f.underlying")
     List<String> findDistinctUnderlyingSince(@Param("startTime") Instant startTime);
+
+    /**
+     * Find flows after a timestamp with minimum premium (for smart money tracking)
+     */
+    List<OptionFlow> findByTsUtcAfterAndPremiumGreaterThanEqualOrderByPremiumDesc(
+        Instant timestamp,
+        BigDecimal minPremium,
+        org.springframework.data.domain.Pageable pageable
+    );
+
+    /**
+     * Find flows for a ticker after a timestamp, ordered by time ascending
+     */
+    List<OptionFlow> findByUnderlyingAndTsUtcAfterOrderByTsUtcAsc(String underlying, Instant timestamp);
+
+    /**
+     * Find flows for a ticker between two timestamps
+     */
+    List<OptionFlow> findByUnderlyingAndTsUtcBetween(String underlying, Instant start, Instant end);
 }
