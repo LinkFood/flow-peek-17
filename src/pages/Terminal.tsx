@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { getMag7Heatmap, getMag7Summary, getSmartMoneyTrades, getAggregatedSentimentTide } from "@/lib/api";
 import { SentimentTide } from "@/components/SentimentTide";
+import { FlowRiver } from "@/components/FlowRiver";
 import { detectSentimentFlips, getLatestFlip, formatFlipMessage, hasRecentFlip } from "@/lib/sentimentFlip";
 
 // Core 9 stocks: MAG7 + SPY + QQQ
@@ -204,11 +205,15 @@ const Terminal = () => {
             </div>
 
             {/* Flow River - 60% space */}
-            <div className="h-64 bg-card border border-border rounded p-4">
-              <div className="h-full flex items-center justify-center text-muted-foreground">
-                Flow river animation coming next...
-              </div>
-            </div>
+            <FlowRiver
+              trades={smartMoneyData?.trades.map(trade => ({
+                timestamp: trade.timestamp,
+                ticker: trade.ticker,
+                side: trade.side,
+                premium: trade.premium,
+              })) || []}
+              height={256}
+            />
 
             {/* Flow Table - 40% space */}
             <div className="bg-card border border-border rounded">
