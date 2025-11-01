@@ -1,11 +1,20 @@
 # Nixpacks configuration for Railway
-# This tells Railway to use Java 17 and Maven for the backend
+# This tells Railway to use Java 17 and Maven for the backend only
+# Frontend (package.json) should be ignored - deployed separately via Lovable
 
 [phases.setup]
 nixPkgs = ['jdk17', 'maven']
+aptPkgs = []
+
+[phases.install]
+# Skip npm install - this is a Java backend only
 
 [phases.build]
 cmds = ['cd backend && mvn clean package -DskipTests']
 
 [phases.start]
 cmd = 'cd backend && java -jar target/natural-flow-1.0.0.jar'
+
+[variables]
+# Disable Node.js detection
+NIXPACKS_NO_MUSL = '1'
