@@ -4,57 +4,148 @@
 
 ## Core Philosophy
 
-This is NOT another cookie-cutter options flow platform. This is a **pattern learning engine** disguised as a flow terminal.
+This is NOT another cookie-cutter options flow platform. This is a **pattern learning engine** that filters signal from noise.
 
 ### The Vision
 
-"Show me the STORY, not just the data"
+**"Let the data tell the story - show historical win rates, not predictions"**
 
-Users should see:
-- "Those AMZN $180 puts we flagged 7 days ago are now ITM (+45% gain)"
-- "AAPL $195 calls for 12/20 getting hammered - this pattern preceded +3% move on Nov 15"
-- "Similar setup occurred Sept 12 - 4/6 success rate historically"
+Good examples:
+- "AAPL $195 calls getting heavy flow (12 hits, $2.1M) - this pattern appeared 23 times before, stock moved up 65% of the time"
+- "NVDA puts have been getting hit hard for 7 days straight - bearish pressure building"
+- "TSLA sentiment flipped from bearish to bullish 3 hours ago - similar flips preceded +2.1% moves 72% of time"
 
-NOT just:
-- "AAPL has bearish flow"
-- "1,234 trades today"
-- Generic sentiment summaries
+Bad examples (avoid):
+- "AAPL WILL move up" (we don't predict)
+- "1,234 trades today" (meaningless noise)
+- Generic sentiment summaries without context
+
+### Key Insight: 90% is Noise
+
+**The real problem:** 90% of options flow is hedging/noise. The alpha is identifying the 10% that actually signals directional moves.
+
+**Our approach:**
+- Ingest ALL flow ($50K+ premium, 0-30 DTE)
+- Tally/aggregate by strike (not individual trades)
+- Surface only the signal (unusual concentration, repeated hits, sentiment flips)
+- Track historical win rates for patterns
+- Let users decide based on probabilities, not predictions
+
+---
 
 ## Architecture Principles
 
-### 1. Data Strategy
+### 1. Data Flow Strategy
+
 ```
-ALL RAW FLOW → Store Forever
-├── Every trade from Polygon (even small ones)
-├── Powers: Market Tide, volume charts, aggregate sentiment
-├── Database: PostgreSQL (5GB/year is fine)
-└── Never delete (pattern learning needs history)
-
-SMART MONEY FLAGS → Track & Validate
-├── Filter: $50K+ premium, 0-30 DTE only
-├── Auto-flag: Unusual volume, strike concentration
-├── Track outcome: Did flagged trade predict move?
-├── Learn: "This pattern → 67% win rate"
-└── Store: ~200-500 trades/day
-
-AI ANALYSIS → Real-time Intelligence
-├── Watch flow AS IT COMES IN
-├── Spot patterns: "Strike getting hit repeatedly"
-├── Historical context: "This happened before on X date"
-└── Outcome tracking: "Last time this setup → +3% move"
+INGEST: All $50K+ trades, 0-30 DTE
+    ↓
+AGGREGATE: Tally by strike/expiry (not individual trades)
+    ↓
+DETECT: Pattern recognition (AI + rules)
+    ↓
+SURFACE: Only show signal (unusual activity, concentration)
+    ↓
+TRACK: Historical outcomes (win rates)
+    ↓
+LEARN: What patterns actually predict moves
 ```
 
-### 2. Why These Filters?
+### 2. Strike-Level Aggregation (Not Trade-Level)
+
+**Critical concept:** We're not tracking millions of individual trades. We're **scoring strikes**.
+
+**Example - Flow comes in:**
+```
+Trade: AAPL $195 call, $50K premium, 14 DTE
+```
+
+**System does NOT:**
+- ❌ Create unique record for this trade
+- ❌ Show "New $50K AAPL call at 2:34pm"
+- ❌ Track this specific contract
+
+**System DOES:**
+- ✅ Add $50K to AAPL $195C 12/20 tally
+- ✅ Increment hit count: 12 → 13
+- ✅ Update last activity timestamp
+- ✅ Recalculate flow grade/score
+- ✅ Check for unusual patterns
+
+**Result:**
+```
+AAPL $195 Calls (12/20, 14 DTE)
+├─ Total Premium: $2.3M ⬆️ (+$50K)
+├─ Hit Count: 13 ⬆️
+├─ Flow Grade: A- (bullish conviction)
+├─ Last Activity: 2 min ago
+└─ Pattern Match: "Heavy call flow, 10+ hits" (appeared 23x, 65% bullish)
+```
+
+**Only flag individual trades when:**
+- Unusually large ($500K+ single trade)
+- First time seeing this strike today
+- Concentration spike (strike hit 5x in 10 minutes)
+- User manually flags it
+
+### 3. Two-Tier Flagging System
+
+**User Flags (Manual):**
+- User sees something interesting and flags it
+- AI ALWAYS monitors user-flagged items
+- Sacred - never auto-delete
+
+**AI Flags (Autonomous):**
+- AI detects patterns automatically
+- Tests its own hypotheses
+- Learns from outcomes
+
+Both get tracked and validated the same way.
+
+### 4. Data Retention Policy
+
+**Contract Data (Temporary - 60 days max):**
+- Track contracts from entry → expiry (natural lifespan)
+- Since we only track 0-30 DTE, max storage = 60 days
+  - 30 DTE at entry + 30 days to expiry
+- After expiry: DELETE raw contract data
+
+**Pattern Knowledge (Permanent - Forever):**
+- Store learned patterns permanently
+- Example:
+  ```
+  Pattern: "AAPL $195 calls, 10+ hits, $2M+ premium, 12-15 DTE"
+  Occurrences: 23 times
+  Outcomes:
+    - Stock moved up: 15 (65%)
+    - Stock moved down: 6 (26%)
+    - No significant move: 2 (9%)
+  Average move: +2.3%
+  Last seen: 2025-10-15
+  ```
+
+**The AI:**
+- ✅ Forgets actual trades (wiped after 60 days)
+- ✅ Remembers patterns and win rates (stored forever)
+- ✅ Updates patterns when seen again
+
+**Think of it like:**
+- Raw data = short-term memory (60 days)
+- Learned patterns = long-term memory (永久)
+
+### 5. Why These Filters?
 
 **$50K+ premium minimum:**
-- Institutional size
+- Institutional size trades
 - Retail doesn't move markets
 - Directional conviction (not just hedging)
+- Below $50K = noise
 
 **0-30 DTE only:**
 - Near-term directional plays
+- These are "I think stock moves THIS WEEK" trades
 - Ignore >30 DTE (long-term hedging, LEAPS, portfolio protection)
-- These are the "I think stock moves THIS WEEK" trades
+- Even $500K premium at 60 DTE = likely hedging noise
 
 **MAG7 only (for now):**
 - AAPL, MSFT, GOOGL, AMZN, NVDA, TSLA, META
@@ -62,7 +153,67 @@ AI ANALYSIS → Real-time Intelligence
 - Focused scope = better pattern learning
 - (SPY/QQQ coming later)
 
-### 3. Design Aesthetic
+---
+
+## AI Pattern Learning Philosophy
+
+### What We're NOT Building:
+- ❌ Predictive model that says "stock WILL move"
+- ❌ Black-box algorithm
+- ❌ Over-fitted ML model on sparse data
+
+### What We ARE Building:
+- ✅ Historical win rate tracker
+- ✅ Pattern recognition engine
+- ✅ Signal filter (separate wheat from chaff)
+- ✅ Transparent probability display
+
+### How AI Learning Works:
+
+**Phase 1 (Now - Aggregate Patterns):**
+- Track aggregate trends: "AAPL calls dominating for 3 days"
+- Basic pattern detection: sentiment flips, unusual volume
+- AI reads every data point but focuses on trends
+- No individual contract tracking yet
+
+**Phase 2 (Later - Stock Movement Correlation):**
+- Track stock price movements after flow patterns
+- "When this pattern appeared, stock moved +2.3% on average"
+- Build historical win rate database
+- Still not predicting - just showing history
+
+**Phase 3 (Future - Full Outcome Tracking):**
+- Track individual contracts to expiry
+- Individual win/loss rates
+- "This exact setup: 67% success rate, avg gain +$2,340"
+- User can backtest strategies
+
+### The AI's Job:
+
+**Not:** "This trade will be profitable"
+
+**Instead:**
+- "This pattern appeared 23 times before"
+- "15 times stock moved up (65%)"
+- "6 times stock moved down (26%)"
+- "2 times no significant move (9%)"
+- "Average move when bullish: +2.3%"
+- "You decide."
+
+### Pattern Detection Triggers:
+
+AI should auto-flag when it sees:
+- Strike concentration (80%+ flow at one strike)
+- Repeated hits (same strike hit 5+ times in 2 hours)
+- Unusual volume (3x+ historical baseline)
+- Sentiment flip (bearish → bullish or vice versa)
+- Patterns with historical precedent
+
+Then it **learns** which triggers actually correlate with moves.
+
+---
+
+## Design Aesthetic
 
 **Bloomberg Terminal vibes:**
 - Dark theme (#0a0e14 background)
@@ -83,10 +234,12 @@ AI ANALYSIS → Real-time Intelligence
 │   Alerts    │    Flow River        │   Stock        │
 │   (Flips)   │   (Animated)         │   Analysis     │
 │             ├──────────────────────┤                │
-│             │  Trade Table         │                │
-│             │  ($100K+ only)       │                │
+│             │  Strike Scorecard    │                │
+│             │  (Aggregated Flow)   │                │
 └─────────────┴──────────────────────┴────────────────┘
 ```
+
+---
 
 ## Technology Stack
 
@@ -102,7 +255,7 @@ AI ANALYSIS → Real-time Intelligence
 - Java 17 + Spring Boot 3.2.1
 - PostgreSQL on Railway
 - OkHttp for Polygon WebSocket
-- OpenAI GPT-4 for insights
+- OpenAI GPT-4 for narrative insights
 - Deployed on: **Railway** (auto-deploys from GitHub)
 - URL: https://web-production-43dc4.up.railway.app
 
@@ -112,12 +265,14 @@ AI ANALYSIS → Real-time Intelligence
 - Features: WebSocket, unlimited calls, 4 years historical, 15-min delayed
 - Credentials: User has API key (not in repo)
 
+---
+
 ## What's Been Built
 
 ### ✅ Frontend Components (100% Complete)
 - [x] Terminal.tsx - Main page with 3-panel layout
 - [x] SentimentTide.tsx - Stacked area chart (calls above, puts below zero)
-- [x] FlowRiver.tsx - Animated trade bubbles flowing left-to-right
+- [x] FlowRiver.tsx - Animated trade bubbles
 - [x] Sidebar stock selector (7 stocks with live data)
 - [x] Live status bar (net flow, trade count, sentiment)
 - [x] What's Happening narrative panel
@@ -125,8 +280,7 @@ AI ANALYSIS → Real-time Intelligence
 
 ### ✅ Backend Services (95% Complete)
 - [x] FlowService.java - Core data ingestion & queries
-- [x] PolygonService.java - REST polling (DEPRECATED, use WebSocket)
-- [x] PolygonWebSocketService.java - Real-time streaming (PREFERRED)
+- [x] PolygonWebSocketService.java - Real-time streaming (READY, needs API key)
 - [x] SmartMoneyService.java - $50K+, 0-30 DTE filtering, strike concentration
 - [x] MarketPulseService.java - Heatmap, summary, timeline aggregations
 - [x] OpenAIService.java - GPT-4 insights endpoint
@@ -136,44 +290,28 @@ AI ANALYSIS → Real-time Intelligence
 ```
 GET  /api/pulse/mag7-summary          - Overall market stats
 GET  /api/pulse/heatmap                - Per-stock call/put breakdown
-GET  /api/pulse/smart-money            - $100K+ trades (currently empty)
-GET  /api/pulse/timeline               - Hourly buckets (BROKEN - returns empty)
+GET  /api/pulse/smart-money            - $50K+ trades
+GET  /api/pulse/timeline               - Hourly buckets
 GET  /api/pulse/unusual-activity       - 3x+ volume alerts
 GET  /api/flow/insights                - AI-generated ticker insights
 POST /api/pulse/load-historical-data   - Synthetic data loader
 ```
 
-### ⚠️ Built But Not Active
-- [ ] Polygon WebSocket streaming (needs API key in Railway)
-- [ ] Real data ingestion (still using synthetic test data)
-- [ ] OpenAI real-time analysis (service exists, not called)
-- [ ] Strike concentration API (logic exists, no endpoint)
-
-### 🔴 Not Started
-- [ ] Historical backfill (90 days of real data)
-- [ ] Historical playback mode (date picker to time-travel)
-- [ ] Outcome tracking (flag → result validation)
-- [ ] Pattern learning display ("this happened before")
-- [ ] Keyboard shortcuts (1-9 for stock selection)
-- [ ] Activity glow effects (visual indicators for hot stocks)
+---
 
 ## Current State
 
-### Data Status (as of last check)
+### Data Status
 ```
 Database: PostgreSQL on Railway
-Records: 3,384 trades (ALL SYNTHETIC)
-Date Range: Last 7 days
-Premium: $326M calls, $349M puts
-Net Flow: -$22.7M (slightly bearish)
+Records: 1,351 trades (ALL SYNTHETIC)
+Status: Using test data for UI development
 ```
 
-**IMPORTANT**: This is 100% fake test data for UI development. No real Polygon data yet.
-
-### Why No Real Data?
-Missing Railway environment variable:
+**Why no real data?** Missing Railway environment variable:
 ```
 POLYGON_API_KEY = user_needs_to_add_this
+POLYGON_WEBSOCKET_ENABLED = true
 ```
 
 Once added:
@@ -181,30 +319,59 @@ Once added:
 2. Connects to wss://delayed.polygon.io/options
 3. Subscribes to T.O:AAPL*, T.O:MSFT*, etc.
 4. Filters $50K+ and 0-30 DTE client-side
-5. Stores ~200-500 smart money trades/day
-6. Database fills with real institutional flow
+5. Aggregates by strike/expiry
+6. Database fills with real flow tallies
 
-## Known Issues
+---
 
-### 1. Timeline Endpoint Broken
-```
-GET /api/pulse/timeline?symbol=AAPL
-→ Returns empty array (backend query bug)
-```
-Impact: Sentiment tide chart may have issues
-Fix needed: Debug MarketPulseService.getTimeline()
+## Development Roadmap
 
-### 2. Smart Money Returns Empty
-```
-GET /api/pulse/smart-money
-→ Returns 0 trades
-```
-Why: Synthetic data doesn't have many $100K+ trades
-Fix: Will resolve when real Polygon data flows
+### Phase 1: Aggregate Flow & Trends (Current)
+**Goal:** Get real data flowing and show aggregated strike-level flow
 
-### 3. Flow River Shows "Waiting for flow"
-Why: No $100K+ trades to animate
-Fix: Will resolve when real data flows
+**Tasks:**
+- [x] WebSocket streaming setup
+- [ ] Add POLYGON_API_KEY to Railway (USER BLOCKER)
+- [ ] Verify real data flowing
+- [ ] Clear synthetic test data
+- [ ] Historical backfill (90 days of flow)
+- [ ] Strike-level aggregation display
+- [ ] Basic trend detection (sentiment flips, unusual volume)
+
+**AI Capability:**
+- "AAPL calls have dominated for 3 days"
+- "NVDA $500 strike seeing unusual concentration"
+- "TSLA sentiment flipped bullish 2 hours ago"
+
+### Phase 2: Historical Win Rates (Next)
+**Goal:** Track what happens after patterns appear
+
+**Tasks:**
+- [ ] Store stock prices after patterns detected
+- [ ] Calculate outcome statistics (% moved up/down)
+- [ ] Build pattern library with win rates
+- [ ] Display: "This pattern appeared 23x, 65% bullish"
+- [ ] OpenAI integration for narrative context
+
+**AI Capability:**
+- "When AAPL $195 calls see 10+ hits, stock moved up 65% of time"
+- "Similar NVDA setup preceded +3.2% moves historically"
+
+### Phase 3: Full Contract Tracking (Future)
+**Goal:** Track individual contracts to expiry for P&L validation
+
+**Tasks:**
+- [ ] Real-time stock price feed integration
+- [ ] Track each flagged contract to expiry
+- [ ] Calculate P&L for outcomes
+- [ ] User can backtest strategies
+- [ ] Historical playback mode (date picker)
+
+**AI Capability:**
+- "Those AMZN $180 puts we flagged went ITM (+$2,340 profit)"
+- "This exact setup: 67% win rate, avg profit $1,850"
+
+---
 
 ## User Preferences & Requirements
 
@@ -214,9 +381,10 @@ Fix: Will resolve when real data flows
 - ✅ Focus on MAG7 only (expandable later)
 - ✅ $50K+ institutional trades only
 - ✅ 0-30 DTE directional plays only
-- ⏳ Historical context for pattern learning
-- ⏳ Outcome tracking ("those puts went ITM")
-- ⏳ AI says "AAPL $195 calls getting hit" (specific strikes)
+- ✅ Strike-level aggregation (not individual trades)
+- ⏳ Historical win rates, not predictions
+- ⏳ AI learns from outcomes
+- ⏳ Dual flagging (user + AI)
 
 ### Nice to Haves
 - SPY and QQQ (9 stocks total)
@@ -231,6 +399,10 @@ Fix: Will resolve when real data flows
 - ❌ Far-dated options (>30 DTE hedging)
 - ❌ Cookie-cutter flow platform aesthetics
 - ❌ Emojis in the UI
+- ❌ Predictive claims ("stock WILL move")
+- ❌ Individual trade tracking (aggregate by strike instead)
+
+---
 
 ## Development Workflow
 
@@ -239,13 +411,11 @@ Fix: Will resolve when real data flows
 1. **Frontend changes:**
    - Edit files in `/src`
    - Lovable auto-deploys on git push
-   - Check: https://lovable.app/your-project
 
 2. **Backend changes:**
    - Edit files in `/backend/src`
    - Railway auto-deploys on git push
    - Check logs in Railway dashboard
-   - Test: curl https://web-production-43dc4.up.railway.app/api/pulse/mag7-summary
 
 3. **Always commit with context:**
    ```bash
@@ -256,33 +426,23 @@ Fix: Will resolve when real data flows
 
 4. **Update STATUS.md after major changes**
 
-### Testing Real Data
-```bash
-# 1. Check if synthetic data present
-curl https://web-production-43dc4.up.railway.app/api/pulse/mag7-summary
-
-# 2. Clear synthetic data (once real data flows)
-curl -X POST "https://web-production-43dc4.up.railway.app/api/pulse/load-historical-data?daysBack=0&clearFirst=true"
-
-# 3. Verify real data flowing
-# (trade count should increase every few seconds during market hours)
-```
-
 ### Common Pitfalls
 
 **DON'T:**
-- Suggest polling Polygon every 5 seconds (use WebSocket)
-- Try to store every single options trade (millions/day)
-- Add consumer app features (this is professional terminal)
-- Remove historical data (pattern learning needs it)
-- Use REST API when WebSocket is better
+- Track individual trades (aggregate by strike instead)
+- Try to predict outcomes (show win rates only)
+- Store data forever (60-day rolling window for contracts)
+- Suggest polling (use WebSocket)
+- Add consumer app features (professional terminal only)
 
 **DO:**
-- Check STATUS.md before starting new features
+- Aggregate flow by strike/expiry
+- Show historical probabilities, not predictions
+- Store pattern knowledge permanently
 - Filter at ingestion time ($50K+, 0-30 DTE)
-- Keep Bloomberg terminal aesthetic
-- Think "pattern learning" not "data display"
-- Update STATUS.md when you complete something
+- Think "signal filter" not "data display"
+
+---
 
 ## Next Session Checklist
 
@@ -319,33 +479,7 @@ When starting a new chat:
 /backend/src/main/resources/application.yml  (config)
 ```
 
-### Before making claims:
-```
-STATUS.md           - What's actually done vs planned
-POLYGON_SETUP.md    - Polygon integration guide
-WEBSOCKET_SETUP.md  - WebSocket streaming guide
-README.md           - Project overview
-```
-
-## Success Metrics
-
-### Short Term (Week 1)
-- [ ] Real Polygon data flowing via WebSocket
-- [ ] Database has 90 days of historical smart money trades
-- [ ] AI can reference historical patterns
-- [ ] Smart money endpoint showing $50K+, 0-30 DTE trades
-
-### Medium Term (Month 1)
-- [ ] Outcome tracking working ("flagged puts went ITM")
-- [ ] Historical playback mode functional
-- [ ] Strike-level AI insights ("$195 calls getting hit")
-- [ ] Pattern learning: "This setup has 67% win rate"
-
-### Long Term (Month 3)
-- [ ] User can backtest strategies
-- [ ] AI learns which patterns actually work
-- [ ] Platform becomes pattern learning edge
-- [ ] Users say "this is better than Unusual Whales"
+---
 
 ## Communication Guidelines
 
@@ -365,27 +499,23 @@ README.md           - Project overview
 
 ### When suggesting changes:
 - Explain WHY, not just WHAT
-- Show the impact on pattern learning
+- Show impact on pattern learning
 - Align with project ethos
 - Check what exists first
 - Update STATUS.md after
+
+---
 
 ## Final Notes
 
 This is a **multi-month project** building something unique. It's not about shipping fast - it's about building the RIGHT thing.
 
-The user has:
-- Technical background
-- Clear vision
-- Polygon Options Developer plan ($79/mo)
-- Patience for quality over speed
+**The goal:** Build a signal filter that shows historical probabilities, not a prediction engine.
 
-The goal is **pattern learning intelligence**, not just "another flow platform."
-
-Every feature should answer: "Does this help users learn what flow patterns actually predict moves?"
+Every feature should answer: "Does this help filter signal from noise and show what actually works?"
 
 ---
 
 **Last Updated**: 2025-11-01
-**Version**: 2.0 (post-WebSocket implementation)
-**Next Major Milestone**: Real Polygon data flowing + 90-day historical backfill
+**Version**: 3.0 (clarified: aggregation, win rates, phased approach)
+**Next Major Milestone**: Real Polygon data flowing + strike-level aggregation display

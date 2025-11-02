@@ -1,6 +1,7 @@
 {
-  "lastUpdated": "2025-11-01T12:00:00Z",
-  "version": "2.0",
+  "lastUpdated": "2025-11-01T18:00:00Z",
+  "version": "3.0",
+  "visionClarification": "Pattern learning engine that filters signal from noise. Shows historical win rates, not predictions. Aggregates flow by strike (not individual trades). 90% of flow is noise - we surface the 10% that matters.",
   "phases": {
     "phase1_foundation": {
       "name": "Phase 1: Terminal Foundation",
@@ -65,10 +66,12 @@
         }
       ]
     },
-    "phase3_real_data": {
-      "name": "Phase 3: Real Data Integration",
+    "phase3_aggregate_flow": {
+      "name": "Phase 3: Aggregate Flow & Trends (CURRENT)",
+      "description": "Get real data flowing, aggregate by strike, surface basic patterns",
       "status": "IN_PROGRESS",
-      "completion": 60,
+      "completion": 70,
+      "goal": "Show 'AAPL calls dominating for 3 days' and 'NVDA $500 strike unusual concentration'",
       "tasks": [
         {
           "id": "websocket-service",
@@ -89,84 +92,153 @@
           "name": "Configure Polygon API key in Railway",
           "status": "BLOCKED",
           "blockedReason": "User needs to add POLYGON_API_KEY to Railway",
-          "assignedTo": "USER"
-        },
-        {
-          "id": "clear-synthetic",
-          "name": "Clear synthetic test data",
-          "status": "PENDING",
-          "dependsOn": ["polygon-api-key"]
+          "assignedTo": "USER",
+          "priority": "CRITICAL"
         },
         {
           "id": "verify-real-data",
           "name": "Verify real Polygon data flowing",
           "status": "PENDING",
-          "dependsOn": ["polygon-api-key"]
-        }
-      ]
-    },
-    "phase4_pattern_learning": {
-      "name": "Phase 4: Pattern Learning Intelligence",
-      "status": "NOT_STARTED",
-      "completion": 0,
-      "tasks": [
+          "dependsOn": ["polygon-api-key"],
+          "estimatedHours": 1
+        },
+        {
+          "id": "clear-synthetic",
+          "name": "Clear synthetic test data",
+          "status": "PENDING",
+          "dependsOn": ["verify-real-data"],
+          "estimatedHours": 0.5
+        },
         {
           "id": "historical-backfill",
-          "name": "Backfill 90 days of historical data",
+          "name": "Backfill 90 days of historical flow data",
           "status": "PENDING",
           "estimatedHours": 8,
-          "dependsOn": ["verify-real-data"]
+          "dependsOn": ["verify-real-data"],
+          "notes": "Use Polygon REST API to pull 90 days of $50K+, 0-30 DTE trades"
         },
         {
-          "id": "strike-concentration-endpoint",
-          "name": "Expose strike concentration REST API",
+          "id": "strike-aggregation",
+          "name": "Build strike-level aggregation logic",
           "status": "PENDING",
-          "estimatedHours": 2,
-          "notes": "Logic exists in SmartMoneyService, needs controller endpoint"
+          "estimatedHours": 12,
+          "notes": "Tally trades by strike/expiry instead of storing individual trades. Calculate hit count, total premium, last activity."
         },
         {
-          "id": "openai-real-time",
-          "name": "Integrate OpenAI for real-time strike analysis",
+          "id": "strike-scorecard-ui",
+          "name": "Display strike scorecard in UI",
+          "status": "PENDING",
+          "estimatedHours": 8,
+          "notes": "Show aggregated strikes with premium, hit count, flow grade"
+        },
+        {
+          "id": "trend-detection",
+          "name": "Basic trend detection (sentiment flips, unusual volume)",
+          "status": "PENDING",
+          "estimatedHours": 6,
+          "notes": "AI flags: concentration spikes, repeated hits, sentiment flips"
+        },
+        {
+          "id": "data-retention",
+          "name": "Implement 60-day data retention policy",
           "status": "PENDING",
           "estimatedHours": 4,
-          "notes": "Call OpenAI on each smart money trade"
-        },
-        {
-          "id": "pattern-detection",
-          "name": "Build pattern detection (repeated setups)",
-          "status": "PENDING",
-          "estimatedHours": 12
-        },
-        {
-          "id": "outcome-tracking",
-          "name": "Track outcomes (flag → result validation)",
-          "status": "PENDING",
-          "estimatedHours": 16
+          "notes": "Auto-delete contract data 60 days old (30 DTE max + 30 days post-expiry)"
         }
       ]
     },
-    "phase5_historical_mode": {
-      "name": "Phase 5: Historical Playback",
+    "phase4_win_rates": {
+      "name": "Phase 4: Historical Win Rates (NEXT)",
+      "description": "Track stock movements after patterns, show historical outcomes",
       "status": "NOT_STARTED",
       "completion": 0,
+      "goal": "Show 'This pattern appeared 23x before, stock moved up 65% of time'",
       "tasks": [
         {
-          "id": "date-picker",
-          "name": "Add date picker UI component",
+          "id": "stock-price-tracking",
+          "name": "Integrate stock price feed",
           "status": "PENDING",
-          "estimatedHours": 4
+          "estimatedHours": 8,
+          "notes": "Track stock prices after pattern detection. Can use Polygon stock API."
         },
         {
-          "id": "historical-query-api",
-          "name": "Backend API for historical date queries",
+          "id": "pattern-library",
+          "name": "Build pattern definition library",
           "status": "PENDING",
-          "estimatedHours": 6
+          "estimatedHours": 12,
+          "notes": "Define patterns: strike concentration, repeated hits, sentiment flips, etc."
         },
         {
-          "id": "playback-mode",
-          "name": "Time-travel mode (replay past days)",
+          "id": "outcome-calculation",
+          "name": "Calculate outcome statistics",
           "status": "PENDING",
-          "estimatedHours": 8
+          "estimatedHours": 8,
+          "notes": "Track: did stock move up/down/sideways? How much? How long?"
+        },
+        {
+          "id": "win-rate-storage",
+          "name": "Store pattern win rates permanently",
+          "status": "PENDING",
+          "estimatedHours": 6,
+          "notes": "Separate DB table for learned patterns. Never delete this data."
+        },
+        {
+          "id": "win-rate-display",
+          "name": "Display win rates in UI",
+          "status": "PENDING",
+          "estimatedHours": 8,
+          "notes": "'This pattern: 23 occurrences, 65% bullish, avg +2.3%'"
+        },
+        {
+          "id": "openai-narrative",
+          "name": "Integrate OpenAI for contextual narrative",
+          "status": "PENDING",
+          "estimatedHours": 6,
+          "notes": "AI explains patterns with historical context"
+        }
+      ]
+    },
+    "phase5_contract_tracking": {
+      "name": "Phase 5: Full Contract Tracking (FUTURE)",
+      "description": "Track individual flagged contracts to expiry for P&L validation",
+      "status": "NOT_STARTED",
+      "completion": 0,
+      "goal": "Show 'Those AMZN $180 puts we flagged went ITM (+$2,340 profit)'",
+      "tasks": [
+        {
+          "id": "real-time-pricing",
+          "name": "Real-time option pricing feed",
+          "status": "PENDING",
+          "estimatedHours": 16,
+          "notes": "Expensive - may need premium data plan"
+        },
+        {
+          "id": "contract-to-expiry",
+          "name": "Track each flagged contract to expiry",
+          "status": "PENDING",
+          "estimatedHours": 12,
+          "notes": "Monitor user-flagged and AI-flagged contracts"
+        },
+        {
+          "id": "pl-calculation",
+          "name": "Calculate P&L for outcomes",
+          "status": "PENDING",
+          "estimatedHours": 8,
+          "notes": "Entry price, exit price, ITM/OTM status"
+        },
+        {
+          "id": "backtest-engine",
+          "name": "User backtesting interface",
+          "status": "PENDING",
+          "estimatedHours": 20,
+          "notes": "Let users test their own strategies"
+        },
+        {
+          "id": "historical-playback",
+          "name": "Historical playback mode",
+          "status": "PENDING",
+          "estimatedHours": 16,
+          "notes": "Date picker to 'time travel' through past flow"
         }
       ]
     },
@@ -188,6 +260,13 @@
           "estimatedHours": 3
         },
         {
+          "id": "user-flags",
+          "name": "User manual flagging interface",
+          "status": "PENDING",
+          "estimatedHours": 8,
+          "notes": "Let users flag strikes to track"
+        },
+        {
           "id": "timeline-fix",
           "name": "Fix timeline endpoint bug",
           "status": "PENDING",
@@ -204,7 +283,7 @@
       "description": "POLYGON_API_KEY not set in Railway",
       "impact": "No real data flowing, still using synthetic test data",
       "assignedTo": "USER",
-      "resolution": "Add POLYGON_API_KEY to Railway environment variables"
+      "resolution": "Add POLYGON_API_KEY and POLYGON_WEBSOCKET_ENABLED=true to Railway environment variables"
     }
   ],
   "bugs": [
@@ -215,17 +294,21 @@
       "file": "backend/src/main/java/com/naturalflow/service/MarketPulseService.java",
       "impact": "Sentiment tide may have gaps",
       "status": "OPEN"
-    },
-    {
-      "id": "smart-money-empty",
-      "severity": "LOW",
-      "description": "Smart money endpoint returns 0 trades",
-      "impact": "Flow river shows 'waiting for flow'",
-      "status": "KNOWN",
-      "notes": "Will resolve when real Polygon data flows"
     }
   ],
   "technicalDebt": [
+    {
+      "id": "no-aggregation",
+      "description": "Currently storing individual trades, need strike-level aggregation",
+      "recommendation": "Build aggregation layer (Phase 3 task)",
+      "priority": "HIGH"
+    },
+    {
+      "id": "no-data-retention",
+      "description": "Database will grow forever without retention policy",
+      "recommendation": "Implement 60-day rolling window (Phase 3 task)",
+      "priority": "HIGH"
+    },
     {
       "id": "rest-polling-deprecated",
       "description": "PolygonService.java REST polling still enabled",
@@ -233,18 +316,19 @@
       "priority": "LOW"
     },
     {
-      "id": "no-data-retention",
-      "description": "Database will grow forever",
-      "recommendation": "Add retention policy (keep 90 days hot, archive rest)",
-      "priority": "MEDIUM"
-    },
-    {
       "id": "no-monitoring",
       "description": "No alerts if WebSocket disconnects",
       "recommendation": "Add health check endpoint and monitoring",
-      "priority": "HIGH"
+      "priority": "MEDIUM"
     }
   ],
+  "architectureDecisions": {
+    "aggregationStrategy": "Tally by strike/expiry, not individual trades. Most strikes get hit repeatedly - we're scoring, not logging.",
+    "dataRetention": "60 days for raw data (30 DTE max + 30 days post-expiry), permanent for pattern knowledge",
+    "aiApproach": "Hybrid: user sets initial rules, AI learns what actually predicts moves",
+    "flaggingSystem": "Dual: user flags (sacred, always track) + AI flags (autonomous learning)",
+    "outcomeTracking": "Phased: Phase 3 = trends, Phase 4 = win rates, Phase 5 = full P&L"
+  },
   "nextSession": {
     "priority": "Add POLYGON_API_KEY to Railway to start real data flow",
     "checkFirst": [
