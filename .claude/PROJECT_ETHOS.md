@@ -11,9 +11,9 @@ This is NOT another cookie-cutter options flow platform. This is a **pattern lea
 **"Let the data tell the story - show historical win rates, not predictions"**
 
 Good examples:
-- "AAPL $195 calls getting heavy flow (12 hits, $2.1M) - this pattern appeared 23 times before, stock moved up 65% of the time"
-- "NVDA puts have been getting hit hard for 7 days straight - bearish pressure building"
-- "TSLA sentiment flipped from bearish to bullish 3 hours ago - similar flips preceded +2.1% moves 72% of time"
+- "AAPL intraday flow bullish BUT smart money quietly building $195 calls for 3 days - divergence suggests fade the crowd"
+- "NVDA market selling puts (intraday bearish) while institutions accumulating $500C for 7 days - strong conviction setup"
+- "TSLA intraday sentiment flipped bullish 3 hours ago AND matches $250C strike being built - confirmation signal (appeared 23x, 72% bullish)"
 
 Bad examples (avoid):
 - "AAPL WILL move up" (we don't predict)
@@ -35,20 +35,77 @@ Bad examples (avoid):
 
 ## Architecture Principles
 
-### 1. Data Flow Strategy
+### 1. DUAL DATA STRATEGY (The Key Innovation)
+
+**We track TWO parallel data streams for the same 9 tickers:**
+
+#### **Stream 1: INTRADAY FLOW LINES (Market Context - ALL Flow)**
+```
+Purpose: Show overall market sentiment (the crowd)
+Data: ALL options flow, no filters
+Display: Line chart (SpotGamma Hiro / Unusual Whales Market Tide style)
+  - Stock price line (white/yellow)
+  - Call premium line (green)
+  - Put premium line (pink/magenta)
+Updates: Real-time throughout trading day
+Use case: Day traders, market temperature
+```
+
+**This is the SURFACE - what everyone sees.**
+
+#### **Stream 2: SMART MONEY SCORECARD (The Underbelly - Filtered Signal)**
+```
+Purpose: Show what institutions are building (the signal)
+Data: Only $50K+ premium, 0-30 DTE
+Display: Strike-level scorecard with multi-day aggregation
+  - AAPL $195C: $2.3M (13 hits over 3 days)
+  - NVDA $500P: $1.8M (8 hits over 2 days)
+Updates: Accumulates over days/weeks
+Use case: Swing traders, position building
+```
+
+**This is the UNDERBELLY - what smart money is actually doing.**
+
+### The Power of Comparing Both:
+
+**Divergence = Edge:**
+- Intraday: Market bearish (puts spiking)
+- Smart Money: Institutions buying calls
+- → Fade the crowd, follow the money
+
+**Confirmation = Strong Signal:**
+- Intraday: Calls dominating
+- Smart Money: Same strike being accumulated for days
+- → High conviction setup
+
+**The 90% Noise Problem:**
+- Intraday lines show EVERYTHING (including 90% hedging)
+- Smart money filter strips out the noise
+- AI compares them: "Market selling puts, but smart money quietly building $195 calls for 3 days"
+
+### 2. Data Flow Architecture
 
 ```
-INGEST: All $50K+ trades, 0-30 DTE
+POLYGON WEBSOCKET
     ↓
-AGGREGATE: Tally by strike/expiry (not individual trades)
+INGEST: Every trade for 9 tickers
     ↓
-DETECT: Pattern recognition (AI + rules)
+FORK INTO TWO STREAMS:
+    ↓                           ↓
+STREAM 1: ALL FLOW          STREAM 2: FILTERED
+(Intraday Lines)            (Smart Money)
+    ↓                           ↓
+Store ALL trades            Filter: $50K+, 0-30 DTE
+Update every 10sec          Aggregate by strike
+Display: Line chart         Display: Scorecard
+    ↓                           ↓
+COMPARE BOTH STREAMS:
     ↓
-SURFACE: Only show signal (unusual activity, concentration)
+AI NARRATIVE: "Divergence detected - market bearish but institutions building calls"
     ↓
-TRACK: Historical outcomes (win rates)
+TRACK OUTCOMES: Which divergences actually predicted moves?
     ↓
-LEARN: What patterns actually predict moves
+LEARN: Build pattern library with historical win rates
 ```
 
 ### 2. Strike-Level Aggregation (Not Trade-Level)
@@ -147,11 +204,12 @@ Both get tracked and validated the same way.
 - Ignore >30 DTE (long-term hedging, LEAPS, portfolio protection)
 - Even $500K premium at 60 DTE = likely hedging noise
 
-**MAG7 only (for now):**
-- AAPL, MSFT, GOOGL, AMZN, NVDA, TSLA, META
-- These 7 stocks move the entire market
+**9 Tickers (MAG7 + SPY + QQQ):**
+- AAPL, MSFT, GOOGL, AMZN, NVDA, TSLA, META (MAG7)
+- SPY, QQQ (market indexes)
+- These 9 tickers move the entire market
 - Focused scope = better pattern learning
-- (SPY/QQQ coming later)
+- Small enough to build dual streams for each
 
 ---
 
@@ -226,17 +284,27 @@ Then it **learns** which triggers actually correlate with moves.
 
 **Three-panel layout:**
 ```
-┌─────────────┬──────────────────────┬────────────────┐
-│   Stock     │   Market Sentiment   │  What's        │
-│  Selector   │        Tide          │  Happening     │
-│   (MAG7)    │   (Stacked Area)     │ (AI Narrative) │
-│             ├──────────────────────┤                │
-│   Alerts    │    Flow River        │   Stock        │
-│   (Flips)   │   (Animated)         │   Analysis     │
-│             ├──────────────────────┤                │
-│             │  Strike Scorecard    │                │
-│             │  (Aggregated Flow)   │                │
-└─────────────┴──────────────────────┴────────────────┘
+┌─────────────┬──────────────────────────────────────┬────────────────┐
+│   Stock     │   INTRADAY FLOW LINES                │  What's        │
+│  Selector   │   (ALL flow - Market Tide style)     │  Happening     │
+│   (9 stocks)│   ─── Stock Price (white)            │                │
+│             │   ─── Call Premium (green)           │  AI Narrative: │
+│   Today's   │   ─── Put Premium (magenta)          │  Compares both │
+│   Alerts    │   Updates: Real-time (10sec)         │  streams to    │
+│   (Flips &  │                                      │  find edge     │
+│   Diverge)  ├──────────────────────────────────────┤                │
+│             │   SMART MONEY SCORECARD              │  "Market       │
+│   Position  │   (Filtered: $50K+, 0-30 DTE)        │   bearish but  │
+│   Building  │   AAPL $195C: $2.3M (13h, 3d) ⚠️     │   smart money  │
+│   Alerts    │   NVDA $500P: $1.8M (8h, 2d)         │   building     │
+│             │   TSLA $250C: $950K (5h, 1d)         │   calls..."    │
+│             │   Accumulates over days/weeks        │                │
+└─────────────┴──────────────────────────────────────┴────────────────┘
+
+KEY:
+- Top half = Market context (what crowd sees)
+- Bottom half = Smart money (what institutions building)
+- Right side = AI compares both to find divergence/confirmation
 ```
 
 ---
@@ -517,5 +585,5 @@ Every feature should answer: "Does this help filter signal from noise and show w
 ---
 
 **Last Updated**: 2025-11-01
-**Version**: 3.0 (clarified: aggregation, win rates, phased approach)
-**Next Major Milestone**: Real Polygon data flowing + strike-level aggregation display
+**Version**: 4.0 (DUAL DATA STRATEGY: intraday flow lines + smart money scorecard)
+**Next Major Milestone**: Real Polygon data flowing + build intraday flow lines (Market Tide style)
