@@ -52,6 +52,7 @@ public class PolygonWebSocketService {
 
     private WebSocket webSocket;
     private boolean authenticated = false;
+    private boolean connected = false;
     private final List<String> pendingSubscriptions = new ArrayList<>();
     private int tradeCount = 0;
     private long lastLogTime = 0;
@@ -87,6 +88,7 @@ public class PolygonWebSocketService {
         webSocket = httpClient.newWebSocket(request, new WebSocketListener() {
             @Override
             public void onOpen(WebSocket webSocket, Response response) {
+                connected = true;
                 log.info("WebSocket connected! Authenticating...");
                 authenticate(webSocket);
             }
@@ -103,12 +105,14 @@ public class PolygonWebSocketService {
             @Override
             public void onClosing(WebSocket webSocket, int code, String reason) {
                 log.warn("WebSocket closing: {} - {}", code, reason);
+                connected = false;
                 authenticated = false;
             }
 
             @Override
             public void onFailure(WebSocket webSocket, Throwable t, Response response) {
                 log.error("WebSocket connection failed: {}", t.getMessage(), t);
+                connected = false;
                 authenticated = false;
 
                 // Attempt to reconnect after 10 seconds
@@ -302,6 +306,6 @@ public class PolygonWebSocketService {
     }
 
     public boolean isConnected() {
-        return authenticated;
+        return connected && authenticated;
     }
 }

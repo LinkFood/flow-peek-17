@@ -9,6 +9,7 @@ import Dashboard from "./pages/Dashboard";
 import TickerView from "./pages/TickerView";
 import AIInsights from "./pages/AIInsights";
 import MarketPulse from "./pages/MarketPulse";
+import AdminDebug from "./pages/AdminDebug";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -22,6 +23,9 @@ const App = () => (
         <Routes>
           {/* New Terminal - No Sidebar, Full Screen */}
           <Route path="/" element={<Terminal />} />
+          
+          {/* Admin Debug Panel */}
+          <Route path="/admin" element={<AdminDebug />} />
 
           {/* Legacy Pages - With Sidebar */}
           <Route path="/legacy/*" element={
