@@ -67,8 +67,8 @@ public class FlowService {
 
     /**
      * Ingest raw JSON from options flow provider
-     * TODO: This method currently has basic Polygon JSON mapping
-     * When switching providers, update the JSON field extraction logic here
+     * Supports both Polygon REST API and WebSocket formats
+     * Handles multiple field names and timestamp units for robustness
      */
     @Transactional
     public OptionFlow ingestFromRawJson(String json) throws Exception {
@@ -80,70 +80,97 @@ public class FlowService {
         // Parse the JSON to extract known fields
         JsonNode root = objectMapper.readTree(json);
 
-        // POLYGON-SPECIFIC MAPPING - Actual Polygon API v3 structure
-        // Based on Polygon.io Options Trades API v3
-        // https://polygon.io/docs/options/get_v3_trades__optionsticker
-
-        // Timestamp: sip_timestamp (nanoseconds) or participant_timestamp
+        // ROBUST TIMESTAMP PARSING - handles REST and WebSocket formats
+        // REST: sip_timestamp, participant_timestamp (nanoseconds)
+        // WebSocket: t (can be ns, µs, or ms)
+        // Test data: timestamp (milliseconds)
+        long timestampValue = 0;
+        
         if (root.has("sip_timestamp")) {
-            long timestampNanos = root.get("sip_timestamp").asLong();
-            flow.setTsUtc(Instant.ofEpochMilli(timestampNanos / 1000000)); // Convert nanos to millis
+            timestampValue = root.get("sip_timestamp").asLong();
         } else if (root.has("participant_timestamp")) {
-            long timestampNanos = root.get("participant_timestamp").asLong();
-            flow.setTsUtc(Instant.ofEpochMilli(timestampNanos / 1000000));
+            timestampValue = root.get("participant_timestamp").asLong();
+        } else if (root.has("t")) {
+            timestampValue = root.get("t").asLong();
         } else if (root.has("timestamp")) {
-            // Fallback for different format or test data
-            long timestampMillis = root.get("timestamp").asLong();
-            flow.setTsUtc(Instant.ofEpochMilli(timestampMillis));
+            timestampValue = root.get("timestamp").asLong();
+        }
+        
+        if (timestampValue > 0) {
+            // Auto-detect timestamp unit and convert to milliseconds
+            if (timestampValue > 1_000_000_000_000_000L) {
+                // Nanoseconds (> 1e15)
+                flow.setTsUtc(Instant.ofEpochMilli(timestampValue / 1_000_000));
+            } else if (timestampValue > 1_000_000_000_000L) {
+                // Microseconds (> 1e12)
+                flow.setTsUtc(Instant.ofEpochMilli(timestampValue / 1_000));
+            } else {
+                // Milliseconds
+                flow.setTsUtc(Instant.ofEpochMilli(timestampValue));
+            }
         } else {
             flow.setTsUtc(Instant.now());
         }
 
-        // Parse option symbol to extract underlying, side, strike, expiry
-        // Polygon option symbols follow OCC format: O:AAPL251219C00150000
+        // ROBUST OPTION SYMBOL PARSING - handles multiple field names
+        // REST API: "ticker"
+        // WebSocket: "sym" or "symbol"
+        // Test data: "ticker" or "symbol"
         String optionSymbol = null;
+        
         if (root.has("ticker")) {
             optionSymbol = root.get("ticker").asText();
-            flow.setOptionSymbol(optionSymbol);
+        } else if (root.has("sym")) {
+            optionSymbol = root.get("sym").asText();
+        } else if (root.has("symbol")) {
+            optionSymbol = root.get("symbol").asText();
+        }
+        
+        // If no symbol found, skip this trade
+        if (optionSymbol == null || optionSymbol.isEmpty()) {
+            throw new IllegalArgumentException("Missing option symbol - cannot ingest trade without ticker/sym/symbol field");
+        }
+        
+        flow.setOptionSymbol(optionSymbol);
 
-            // Parse OCC-formatted option symbol
-            // Format: O:UNDERLYING[YY][MM][DD][C/P][STRIKE*1000]
-            if (optionSymbol.startsWith("O:")) {
-                try {
-                    String[] parts = optionSymbol.substring(2).split("(?<=\\D)(?=\\d)|(?<=\\d)(?=\\D)");
+        // Parse OCC-formatted option symbol
+        // Format: O:UNDERLYING[YY][MM][DD][C/P][STRIKE*1000]
+        // Example: O:AAPL251219C00150000
+        if (optionSymbol.startsWith("O:")) {
+            try {
+                String[] parts = optionSymbol.substring(2).split("(?<=\\D)(?=\\d)|(?<=\\d)(?=\\D)");
 
-                    // Extract underlying (before the date)
-                    String underlying = parts[0].replaceAll("[^A-Z]", "");
-                    flow.setUnderlying(underlying);
+                // Extract underlying (before the date)
+                String underlying = parts[0].replaceAll("[^A-Z]", "");
+                flow.setUnderlying(underlying);
 
-                    // Find call/put indicator
-                    int cpIndex = optionSymbol.indexOf("C", 3);
-                    if (cpIndex == -1) {
-                        cpIndex = optionSymbol.indexOf("P", 3);
-                        flow.setSide("PUT");
-                    } else {
-                        flow.setSide("CALL");
-                    }
-
-                    // Extract date (6 digits before C/P)
-                    if (cpIndex > 8) {
-                        String dateStr = optionSymbol.substring(cpIndex - 6, cpIndex);
-                        int year = 2000 + Integer.parseInt(dateStr.substring(0, 2));
-                        int month = Integer.parseInt(dateStr.substring(2, 4));
-                        int day = Integer.parseInt(dateStr.substring(4, 6));
-                        flow.setExpiry(LocalDate.of(year, month, day));
-                    }
-
-                    // Extract strike (8 digits after C/P, divide by 1000)
-                    if (cpIndex > 0 && optionSymbol.length() >= cpIndex + 9) {
-                        String strikeStr = optionSymbol.substring(cpIndex + 1, cpIndex + 9);
-                        double strike = Double.parseDouble(strikeStr) / 1000.0;
-                        flow.setStrike(BigDecimal.valueOf(strike));
-                    }
-                } catch (Exception e) {
-                    // If parsing fails, just store the symbol
-                    flow.setOptionSymbol(optionSymbol);
+                // Find call/put indicator
+                int cpIndex = optionSymbol.indexOf("C", 3);
+                if (cpIndex == -1) {
+                    cpIndex = optionSymbol.indexOf("P", 3);
+                    flow.setSide("PUT");
+                } else {
+                    flow.setSide("CALL");
                 }
+
+                // Extract date (6 digits before C/P)
+                if (cpIndex > 8) {
+                    String dateStr = optionSymbol.substring(cpIndex - 6, cpIndex);
+                    int year = 2000 + Integer.parseInt(dateStr.substring(0, 2));
+                    int month = Integer.parseInt(dateStr.substring(2, 4));
+                    int day = Integer.parseInt(dateStr.substring(4, 6));
+                    flow.setExpiry(LocalDate.of(year, month, day));
+                }
+
+                // Extract strike (8 digits after C/P, divide by 1000)
+                if (cpIndex > 0 && optionSymbol.length() >= cpIndex + 9) {
+                    String strikeStr = optionSymbol.substring(cpIndex + 1, cpIndex + 9);
+                    double strike = Double.parseDouble(strikeStr) / 1000.0;
+                    flow.setStrike(BigDecimal.valueOf(strike));
+                }
+            } catch (Exception e) {
+                // If parsing fails, just store the symbol
+                flow.setOptionSymbol(optionSymbol);
             }
         }
 
@@ -161,34 +188,48 @@ public class FlowService {
             flow.setExpiry(LocalDate.parse(root.get("expiry").asText()));
         }
 
-        // Size from Polygon
+        // ROBUST SIZE PARSING - handles REST and WebSocket
+        // REST API: "size"
+        // WebSocket: "s" or "size"
+        int size = 0;
         if (root.has("size")) {
-            flow.setSize(root.get("size").asInt());
+            size = root.get("size").asInt();
+            flow.setSize(size);
+        } else if (root.has("s")) {
+            size = root.get("s").asInt();
+            flow.setSize(size);
         }
 
-        // Price and premium calculation
-        // Polygon provides price per contract, we calculate total premium
-        if (root.has("price") && root.has("size")) {
-            double price = root.get("price").asDouble();
-            int size = root.get("size").asInt();
-            // Premium = price * size * 100 (options multiplier)
+        // ROBUST PRICE AND PREMIUM CALCULATION
+        // REST API: "price"
+        // WebSocket: "p" or "price"
+        // Test data: "premium" (direct)
+        double price = 0.0;
+        
+        if (root.has("price")) {
+            price = root.get("price").asDouble();
+        } else if (root.has("p")) {
+            price = root.get("p").asDouble();
+        }
+        
+        if (price > 0 && size > 0) {
+            // Premium = price * size * 100 (options contract multiplier)
             flow.setPremium(BigDecimal.valueOf(price * size * 100));
         } else if (root.has("premium")) {
-            // Fallback for test data
+            // Direct premium for test data
             flow.setPremium(BigDecimal.valueOf(root.get("premium").asDouble()));
         }
 
-        // Action (buy/sell) - Polygon may provide conditions or exchange info
-        if (root.has("conditions")) {
-            JsonNode conditions = root.get("conditions");
-            if (conditions.isArray() && conditions.size() > 0) {
-                // Parse conditions to determine if it's a buy or sell
-                // This is provider-specific logic
-                flow.setAction("TRADE");
-            }
-        }
+        // Action - default to TRADE if not specified
         if (root.has("action")) {
             flow.setAction(root.get("action").asText().toUpperCase());
+        } else if (root.has("conditions")) {
+            JsonNode conditions = root.get("conditions");
+            if (conditions.isArray() && conditions.size() > 0) {
+                flow.setAction("TRADE");
+            }
+        } else {
+            flow.setAction("TRADE");
         }
 
         flow.setSrc("polygon");
@@ -204,6 +245,14 @@ public class FlowService {
     public List<String> getRecentTickers() {
         Instant startTime = Instant.now().minus(24, ChronoUnit.HOURS);
         return flowRepository.findDistinctUnderlyingSince(startTime);
+    }
+
+    /**
+     * Get most recent trades across all tickers (for debugging)
+     */
+    @Transactional(readOnly = true)
+    public List<OptionFlow> getRecentTradesAcrossAll(int limit) {
+        return flowRepository.findTopByOrderByTsUtcDesc(PageRequest.of(0, limit));
     }
 
     /**

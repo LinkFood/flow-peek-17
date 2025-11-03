@@ -98,4 +98,9 @@ public interface FlowRepository extends JpaRepository<OptionFlow, Long> {
         @Param("start") Instant start,
         @Param("end") Instant end
     );
+
+    /**
+     * Get most recent trades across all tickers (for debugging)
+     */
+    List<OptionFlow> findTopByOrderByTsUtcDesc(org.springframework.data.domain.Pageable pageable);
 }

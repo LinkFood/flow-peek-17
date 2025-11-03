@@ -100,88 +100,113 @@ public class ScheduledBackfillService {
     }
 
     /**
-     * Fetch trades for a specific ticker using Polygon Trades API
-     * Endpoint: GET /v3/trades/{optionsTicker}
+     * Fetch trades for a specific ticker using Polygon Options Trades API
+     * Endpoint: GET /v3/trades/options?underlying_ticker={TICKER}
      * 
-     * Note: This fetches trades for ALL options on the underlying ticker
-     * We filter client-side for $50K+ premium and 0-30 DTE
+     * This fetches all options trades for the underlying ticker with pagination support
      */
     private int fetchTradesForTicker(String ticker, long startTimestamp, long endTimestamp) {
         try {
-            // Polygon options ticker format: O:AAPL (with O: prefix for all options on AAPL)
-            String optionsTicker = "O:" + ticker;
-            
-            // Use Polygon v3 trades API with wildcard for all options on this ticker
-            // Note: This requires Options Starter plan or higher
+            // Use Polygon v3 options trades API with underlying_ticker filter
             String url = String.format(
-                "https://api.polygon.io/v3/trades/%s?timestamp.gte=%d&timestamp.lte=%d&limit=50000&order=asc&apiKey=%s",
-                optionsTicker,
+                "https://api.polygon.io/v3/trades/options?underlying_ticker=%s&timestamp.gte=%d&timestamp.lte=%d&order=asc&sort=timestamp&limit=5000&apiKey=%s",
+                ticker,
                 startTimestamp * 1000000, // Convert to nanoseconds
                 endTimestamp * 1000000,   // Convert to nanoseconds
                 apiKey
             );
 
-            log.debug("Fetching {} trades from {} to {}", 
+            log.info("Fetching {} trades from {} to {}", 
                 ticker,
                 Instant.ofEpochMilli(startTimestamp),
                 Instant.ofEpochMilli(endTimestamp));
 
-            Request request = new Request.Builder()
-                .url(url)
-                .get()
-                .build();
+            int totalIngested = 0;
+            int pageCount = 0;
+            String nextUrl = url;
 
-            try (Response response = httpClient.newCall(request).execute()) {
-                if (!response.isSuccessful()) {
-                    log.warn("Polygon API error for {}: {} - {}", 
-                        ticker, response.code(), response.message());
-                    return 0;
-                }
+            // Pagination loop (cap at 10 pages to avoid infinite loops)
+            while (nextUrl != null && pageCount < 10) {
+                pageCount++;
+                
+                Request request = new Request.Builder()
+                    .url(nextUrl)
+                    .get()
+                    .build();
 
-                if (response.body() == null) {
-                    log.warn("Empty response for {}", ticker);
-                    return 0;
-                }
-
-                String json = response.body().string();
-                JsonNode root = objectMapper.readTree(json);
-
-                // Check status
-                if (!root.has("status") || !root.get("status").asText().equals("OK")) {
-                    String status = root.has("status") ? root.get("status").asText() : "unknown";
-                    log.warn("Non-OK status for {}: {}", ticker, status);
-                    return 0;
-                }
-
-                // Parse results
-                JsonNode results = root.get("results");
-                if (results == null || !results.isArray() || results.size() == 0) {
-                    log.debug("No trades found for {}", ticker);
-                    return 0;
-                }
-
-                // Ingest all trades (FlowService will filter for $50K+ and 0-30 DTE)
-                int ingestedCount = 0;
-                for (JsonNode trade : results) {
-                    try {
-                        // Convert Polygon REST format to match WebSocket format if needed
-                        flowService.ingestFromRawJson(trade.toString());
-                        ingestedCount++;
-                    } catch (Exception e) {
-                        log.debug("Skipped trade (likely filtered): {}", e.getMessage());
+                try (Response response = httpClient.newCall(request).execute()) {
+                    if (!response.isSuccessful()) {
+                        log.warn("Polygon API error for {} (page {}): {} - {}", 
+                            ticker, pageCount, response.code(), response.message());
+                        break;
                     }
+
+                    if (response.body() == null) {
+                        log.warn("Empty response for {} (page {})", ticker, pageCount);
+                        break;
+                    }
+
+                    String json = response.body().string();
+                    JsonNode root = objectMapper.readTree(json);
+
+                    // Check status
+                    if (!root.has("status") || !root.get("status").asText().equals("OK")) {
+                        String status = root.has("status") ? root.get("status").asText() : "unknown";
+                        log.warn("Non-OK status for {} (page {}): {} - Response: {}", 
+                            ticker, pageCount, status, json.substring(0, Math.min(500, json.length())));
+                        break;
+                    }
+
+                    // Parse results
+                    JsonNode results = root.get("results");
+                    if (results == null || !results.isArray() || results.size() == 0) {
+                        log.info("{}: 0 trades returned (page {})", ticker, pageCount);
+                        break;
+                    }
+
+                    // Ingest trades from this page
+                    int pageIngested = 0;
+                    for (JsonNode trade : results) {
+                        try {
+                            flowService.ingestFromRawJson(trade.toString());
+                            pageIngested++;
+                        } catch (Exception e) {
+                            log.debug("Skipped trade (likely filtered): {}", e.getMessage());
+                        }
+                    }
+
+                    totalIngested += pageIngested;
+                    log.info("{}: page {} - {} trades ingested from {} results", 
+                        ticker, pageCount, pageIngested, results.size());
+
+                    // Check for next page
+                    if (root.has("next_url")) {
+                        nextUrl = root.get("next_url").asText();
+                        // Add API key to next_url if not present
+                        if (!nextUrl.contains("apiKey=")) {
+                            nextUrl += "&apiKey=" + apiKey;
+                        }
+                        Thread.sleep(100); // Small delay between pages
+                    } else {
+                        nextUrl = null;
+                    }
+
+                } catch (Exception e) {
+                    log.error("Error processing {} response (page {}): {}", ticker, pageCount, e.getMessage());
+                    break;
                 }
-
-                if (ingestedCount > 0) {
-                    log.info("📊 {}: {} trades ingested", ticker, ingestedCount);
-                }
-
-                return ingestedCount;
-
-            } catch (Exception e) {
-                log.error("Error processing {} response: {}", ticker, e.getMessage());
-                return 0;
             }
+
+            if (totalIngested > 0) {
+                log.info("📊 {}: {} trades ingested total across {} pages (window {} - {})", 
+                    ticker, totalIngested, pageCount,
+                    Instant.ofEpochMilli(startTimestamp),
+                    Instant.ofEpochMilli(endTimestamp));
+            } else {
+                log.info("{}: 0 trades ingested", ticker);
+            }
+
+            return totalIngested;
 
         } catch (Exception e) {
             log.error("Error fetching {} trades: {}", ticker, e.getMessage());

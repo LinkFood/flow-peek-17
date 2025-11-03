@@ -130,6 +130,39 @@ public class MarketPulseController {
     }
 
     /**
+     * GET /api/pulse/debug/last-trades
+     * Debug endpoint to verify data ingestion is working
+     * Returns the most recent trades across all tickers
+     */
+    @GetMapping("/debug/last-trades")
+    public ResponseEntity<Map<String, Object>> getLastTrades(
+            @RequestParam(defaultValue = "10") int limit) {
+        
+        List<com.naturalflow.model.OptionFlow> recentTrades = 
+            flowService.getRecentTradesAcrossAll(Math.min(limit, 50));
+        
+        Map<String, Object> response = new HashMap<>();
+        response.put("count", recentTrades.size());
+        response.put("trades", recentTrades.stream()
+            .map(trade -> {
+                Map<String, Object> tradeMap = new HashMap<>();
+                tradeMap.put("optionSymbol", trade.getOptionSymbol());
+                tradeMap.put("underlying", trade.getUnderlying());
+                tradeMap.put("side", trade.getSide());
+                tradeMap.put("strike", trade.getStrike());
+                tradeMap.put("expiry", trade.getExpiry());
+                tradeMap.put("premium", trade.getPremium());
+                tradeMap.put("size", trade.getSize());
+                tradeMap.put("timestamp", trade.getTsUtc());
+                tradeMap.put("src", trade.getSrc());
+                return tradeMap;
+            })
+            .collect(java.util.stream.Collectors.toList()));
+        
+        return ResponseEntity.ok(response);
+    }
+
+    /**
      * GET /api/pulse/unusual-activity
      * Returns unusual/anomalous flow patterns
      * Things that deviate from historical norms
