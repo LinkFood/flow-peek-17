@@ -53,6 +53,8 @@ public class PolygonWebSocketService {
     private WebSocket webSocket;
     private boolean authenticated = false;
     private final List<String> pendingSubscriptions = new ArrayList<>();
+    private int tradeCount = 0;
+    private long lastLogTime = 0;
 
     public PolygonWebSocketService(FlowService flowService, SmartMoneyService smartMoneyService) {
         this.flowService = flowService;
@@ -182,6 +184,16 @@ public class PolygonWebSocketService {
 
     private void processTrade(JsonNode trade) {
         try {
+            tradeCount++;
+
+            // Log trade count every 30 seconds
+            long now = System.currentTimeMillis();
+            if (now - lastLogTime > 30000) {
+                log.info("📊 Received {} trades in last 30s", tradeCount);
+                tradeCount = 0;
+                lastLogTime = now;
+            }
+
             // Extract fields from Polygon WebSocket trade message
             // Format: {"ev":"T","sym":"O:AAPL251220C00190000","x":...,"p":...,"s":...,"t":...}
 
