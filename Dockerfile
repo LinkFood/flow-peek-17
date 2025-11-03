@@ -1,5 +1,6 @@
 # Multi-stage Dockerfile for Natural Flow Backend
 # This forces Railway to use Java/Maven, ignoring any Node.js files in root
+# Updated: Nov 3, 2025 - Force cache bust for 9 ticker deployment
 
 # Stage 1: Build with Maven
 FROM maven:3.9-eclipse-temurin-17 AS builder
