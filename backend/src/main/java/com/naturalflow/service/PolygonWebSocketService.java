@@ -79,8 +79,9 @@ public class PolygonWebSocketService {
 
         log.info("Connecting to Polygon WebSocket for real-time options flow...");
 
+        // Try the new Massive.com delayed endpoint format
         Request request = new Request.Builder()
-            .url("wss://delayed.polygon.io/options")
+            .url("wss://delayed.massive.com/options")
             .build();
 
         webSocket = httpClient.newWebSocket(request, new WebSocketListener() {
