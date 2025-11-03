@@ -30,9 +30,9 @@ public class PolygonWebSocketService {
 
     private static final Logger log = LoggerFactory.getLogger(PolygonWebSocketService.class);
 
-    // MAG7 tickers to track
-    private static final String[] MAG7_TICKERS = {
-        "AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "TSLA", "META"
+    // 9 tickers to track (MAG7 + SPY + QQQ)
+    private static final String[] TRACKED_TICKERS = {
+        "AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "TSLA", "META", "SPY", "QQQ"
     };
 
     // Smart money filters
@@ -118,8 +118,8 @@ public class PolygonWebSocketService {
             }
         });
 
-        // Build subscription list for MAG7
-        for (String ticker : MAG7_TICKERS) {
+        // Build subscription list for all 9 tickers
+        for (String ticker : TRACKED_TICKERS) {
             pendingSubscriptions.add("T.O:" + ticker + "*"); // All options for this ticker
         }
     }
@@ -176,7 +176,7 @@ public class PolygonWebSocketService {
         );
 
         ws.send(subscribeMessage);
-        log.info("📡 Subscribed to MAG7 options flow: {}", pendingSubscriptions);
+        log.info("📡 Subscribed to 9 tickers options flow: {}", pendingSubscriptions);
         pendingSubscriptions.clear();
     }
 
@@ -201,11 +201,6 @@ public class PolygonWebSocketService {
             int size = trade.has("s") ? trade.get("s").asInt() : 0;
             double premium = price * size * 100;
 
-            // FILTER 1: Premium >= $50K
-            if (premium < MIN_PREMIUM) {
-                return; // Skip small trades
-            }
-
             // Parse expiry to calculate DTE
             LocalDate expiry = parseExpiry(optionSymbol);
             if (expiry == null) {
@@ -214,18 +209,15 @@ public class PolygonWebSocketService {
 
             int dte = (int) ChronoUnit.DAYS.between(LocalDate.now(), expiry);
 
-            // FILTER 2: DTE <= 30 days
-            if (dte < 0 || dte > MAX_DTE) {
-                return; // Skip far-dated or expired options
-            }
-
-            // This is smart money! Ingest it
-            log.info("💰 Smart Money: {} ${} premium, {} DTE",
-                optionSymbol, String.format("%.0f", premium), dte);
-
-            // Convert to JSON and ingest
+            // STORE ALL TRADES (for intraday flow lines - no filter)
             String json = trade.toString();
             flowService.ingestFromRawJson(json);
+
+            // LOG if this is smart money ($50K+, 0-30 DTE)
+            if (premium >= MIN_PREMIUM && dte >= 0 && dte <= MAX_DTE) {
+                log.info("💰 Smart Money: {} ${} premium, {} DTE",
+                    optionSymbol, String.format("%.0f", premium), dte);
+            }
 
         } catch (Exception e) {
             log.error("Error processing trade: {}", e.getMessage());
