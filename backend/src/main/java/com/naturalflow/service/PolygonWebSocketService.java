@@ -79,9 +79,9 @@ public class PolygonWebSocketService {
 
         log.info("Connecting to Polygon WebSocket for real-time options flow...");
 
-        // Try the new Massive.com delayed endpoint format
+        // Use Polygon's delayed options WebSocket endpoint (15-min delay)
         Request request = new Request.Builder()
-            .url("wss://delayed.massive.com/options")
+            .url("wss://delayed.polygon.io/options")
             .build();
 
         webSocket = httpClient.newWebSocket(request, new WebSocketListener() {
@@ -121,9 +121,10 @@ public class PolygonWebSocketService {
             }
         });
 
-        // TEST: Subscribe to ALL options trades to verify data is flowing
-        // TODO: Need to find correct format for per-ticker subscription
-        pendingSubscriptions.add("T.O:*"); // ALL options (temporary test)
+        // Subscribe to MAG7 + SPY + QQQ options
+        for (String ticker : TRACKED_TICKERS) {
+            pendingSubscriptions.add("T.O:" + ticker + "*");
+        }
     }
 
     private void authenticate(WebSocket ws) {
