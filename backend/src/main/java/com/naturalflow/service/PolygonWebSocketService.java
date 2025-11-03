@@ -136,6 +136,9 @@ public class PolygonWebSocketService {
     private void handleMessage(String message, WebSocket ws) throws Exception {
         JsonNode root = objectMapper.readTree(message);
 
+        // DEBUG: Log ALL messages to see what we're receiving
+        log.info("📩 WebSocket message received: {}", message.substring(0, Math.min(200, message.length())));
+
         // Handle authentication response
         if (root.isArray() && root.size() > 0) {
             JsonNode first = root.get(0);
@@ -158,10 +161,20 @@ public class PolygonWebSocketService {
 
         // Handle trade messages
         if (root.isArray()) {
+            int tradeCount = 0;
             for (JsonNode trade : root) {
-                if (trade.has("ev") && trade.get("ev").asText().equals("T")) {
-                    processTrade(trade);
+                if (trade.has("ev")) {
+                    String eventType = trade.get("ev").asText();
+                    log.info("📨 Event type: {} | Full event: {}", eventType, trade.toString().substring(0, Math.min(150, trade.toString().length())));
+                    
+                    if (eventType.equals("T")) {
+                        processTrade(trade);
+                        tradeCount++;
+                    }
                 }
+            }
+            if (tradeCount > 0) {
+                log.info("✅ Processed {} trades from this message", tradeCount);
             }
         }
     }
