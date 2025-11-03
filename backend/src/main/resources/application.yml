@@ -29,6 +29,8 @@ polygon:
     enabled: ${POLYGON_ENABLED:false}
   websocket:
     enabled: ${POLYGON_WEBSOCKET_ENABLED:true}
+  backfill:
+    enabled: ${POLYGON_BACKFILL_ENABLED:true}
 
 # OpenAI API configuration
 openai:

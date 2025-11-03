@@ -4,6 +4,7 @@ import com.naturalflow.config.Constants;
 import com.naturalflow.service.FlowService;
 import com.naturalflow.service.MarketPulseService;
 import com.naturalflow.service.HistoricalDataLoader;
+import com.naturalflow.service.ScheduledBackfillService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -23,11 +24,14 @@ public class MarketPulseController {
     private final MarketPulseService pulseService;
     private final FlowService flowService;
     private final HistoricalDataLoader dataLoader;
+    private final ScheduledBackfillService scheduledBackfillService;
 
-    public MarketPulseController(MarketPulseService pulseService, FlowService flowService, HistoricalDataLoader dataLoader) {
+    public MarketPulseController(MarketPulseService pulseService, FlowService flowService, 
+                                 HistoricalDataLoader dataLoader, ScheduledBackfillService scheduledBackfillService) {
         this.pulseService = pulseService;
         this.flowService = flowService;
         this.dataLoader = dataLoader;
+        this.scheduledBackfillService = scheduledBackfillService;
     }
 
     /**
@@ -157,6 +161,44 @@ public class MarketPulseController {
             // Use synthetic data generator for now (real Polygon data requires paid subscription)
             Map<String, Object> result = dataLoader.generateSyntheticHistoricalData(daysBack);
             return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            Map<String, Object> error = new HashMap<>();
+            error.put("success", false);
+            error.put("error", e.getMessage());
+            return ResponseEntity.internalServerError().body(error);
+        }
+    }
+
+    /**
+     * POST /api/pulse/backfill-real-data
+     * Trigger manual backfill of real Polygon data
+     * Fetches recent trades for specified ticker and hours back
+     */
+    @PostMapping("/backfill-real-data")
+    public ResponseEntity<Map<String, Object>> backfillRealData(
+            @RequestParam(required = false) String ticker,
+            @RequestParam(defaultValue = "2") int hoursBack) {
+
+        try {
+            if (ticker != null && !ticker.isEmpty()) {
+                // Backfill single ticker
+                int count = scheduledBackfillService.manualBackfill(ticker.toUpperCase(), hoursBack);
+                
+                Map<String, Object> result = new HashMap<>();
+                result.put("success", true);
+                result.put("ticker", ticker.toUpperCase());
+                result.put("hoursBack", hoursBack);
+                result.put("tradesIngested", count);
+                return ResponseEntity.ok(result);
+            } else {
+                // Trigger immediate full backfill cycle
+                scheduledBackfillService.backfillRecentTrades();
+                
+                Map<String, Object> result = new HashMap<>();
+                result.put("success", true);
+                result.put("message", "Full backfill triggered for all MAG7 tickers");
+                return ResponseEntity.ok(result);
+            }
         } catch (Exception e) {
             Map<String, Object> error = new HashMap<>();
             error.put("success", false);
