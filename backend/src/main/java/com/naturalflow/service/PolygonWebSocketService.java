@@ -120,10 +120,9 @@ public class PolygonWebSocketService {
             }
         });
 
-        // Build subscription list for all 9 tickers
-        for (String ticker : TRACKED_TICKERS) {
-            pendingSubscriptions.add("T.O:" + ticker + "*"); // All options for this ticker
-        }
+        // TEST: Subscribe to ALL options trades to verify data is flowing
+        // TODO: Need to find correct format for per-ticker subscription
+        pendingSubscriptions.add("T.O:*"); // ALL options (temporary test)
     }
 
     private void authenticate(WebSocket ws) {
