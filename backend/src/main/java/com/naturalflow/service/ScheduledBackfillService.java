@@ -43,8 +43,11 @@ public class ScheduledBackfillService {
     @Value("${polygon.api.key}")
     private String apiKey;
 
-    @Value("${polygon.api.base-url:https://delayed.polygon.io}")
-    private String polygonBaseUrl;
+    @Value("${polygon.api.ref-base-url:https://api.polygon.io}")
+    private String polygonRefBaseUrl;
+
+    @Value("${polygon.api.trades-base-url:https://delayed.polygon.io}")
+    private String polygonTradesBaseUrl;
 
     @Value("${polygon.backfill.enabled:true}")
     private boolean enabled;
@@ -121,17 +124,21 @@ public class ScheduledBackfillService {
      * Uses Polygon Reference API: GET /v3/reference/options/contracts
      */
     private List<String> listContractsForUnderlying(String underlying, LocalDate asOf) {
+        return listContractsForUnderlyingWithHost(underlying, asOf, polygonRefBaseUrl, false);
+    }
+
+    private List<String> listContractsForUnderlyingWithHost(String underlying, LocalDate asOf, String baseUrl, boolean isRetry) {
         try {
             String url = String.format(
                 "%s/v3/reference/options/contracts?underlying_ticker=%s&as_of=%s&expired=false&order=asc&sort=expiration_date&limit=%d&apiKey=%s",
-                polygonBaseUrl,
+                baseUrl,
                 underlying,
                 asOf.format(DateTimeFormatter.ISO_LOCAL_DATE),
-                contractsPerTicker * 2, // Fetch more and filter by expiry
+                contractsPerTicker * 2,
                 apiKey
             );
 
-            log.debug("Fetching contracts for {}: {}", underlying, url.replace(apiKey, "***"));
+            log.debug("Fetching contracts for {} from {}: {}", underlying, baseUrl, url.replace(apiKey, "***"));
 
             Request request = new Request.Builder()
                 .url(url)
@@ -141,8 +148,16 @@ public class ScheduledBackfillService {
             try (Response response = httpClient.newCall(request).execute()) {
                 if (!response.isSuccessful()) {
                     String errorBody = response.body() != null ? response.body().string() : "";
-                    log.warn("Failed to fetch contracts for {}: {} - {} | Body: {}", 
-                        underlying, response.code(), response.message(), errorBody.substring(0, Math.min(200, errorBody.length())));
+                    log.warn("Failed to fetch contracts for {} from {}: {} - {} | Body: {}", 
+                        underlying, baseUrl, response.code(), response.message(), 
+                        errorBody.substring(0, Math.min(200, errorBody.length())));
+                    
+                    // Retry on api.polygon.io if we got 404 on delayed host and haven't retried yet
+                    if (response.code() == 404 && !isRetry && !baseUrl.contains("api.polygon.io")) {
+                        log.info("Retrying contract listing for {} on api.polygon.io", underlying);
+                        return listContractsForUnderlyingWithHost(underlying, asOf, "https://api.polygon.io", true);
+                    }
+                    
                     return new ArrayList<>();
                 }
 
@@ -263,12 +278,16 @@ public class ScheduledBackfillService {
      * Endpoint: GET /v3/trades/{contract}
      */
     private int fetchTradesForContract(String contract, long startTimestamp, long endTimestamp) {
+        return fetchTradesForContractWithHost(contract, startTimestamp, endTimestamp, polygonTradesBaseUrl, false);
+    }
+
+    private int fetchTradesForContractWithHost(String contract, long startTimestamp, long endTimestamp, String baseUrl, boolean isRetry) {
         try {
             String url = String.format(
                 "%s/v3/trades/%s?timestamp.gte=%d&timestamp.lte=%d&order=asc&sort=timestamp&limit=50000&apiKey=%s",
-                polygonBaseUrl,
+                baseUrl,
                 contract,
-                startTimestamp * 1000000, // Convert to nanoseconds
+                startTimestamp * 1000000,
                 endTimestamp * 1000000,
                 apiKey
             );
@@ -283,7 +302,7 @@ public class ScheduledBackfillService {
                 
                 // If next_url uses api.polygon.io, rewrite to our base URL
                 if (nextUrl.startsWith("https://api.polygon.io")) {
-                    nextUrl = nextUrl.replace("https://api.polygon.io", polygonBaseUrl);
+                    nextUrl = nextUrl.replace("https://api.polygon.io", baseUrl);
                 }
                 
                 Request request = new Request.Builder()
@@ -294,12 +313,16 @@ public class ScheduledBackfillService {
                 try (Response response = httpClient.newCall(request).execute()) {
                     if (!response.isSuccessful()) {
                         if (response.code() == 404) {
-                            // 404 is expected for contracts with no trades
+                            // Retry on api.polygon.io if we got 404 on delayed host and this is first page
+                            if (!isRetry && pageCount == 1 && !baseUrl.contains("api.polygon.io")) {
+                                log.info("Retrying trades for {} on api.polygon.io", contract);
+                                return fetchTradesForContractWithHost(contract, startTimestamp, endTimestamp, "https://api.polygon.io", true);
+                            }
                             log.debug("{}: No trades found (404)", contract);
                         } else {
                             String errorBody = response.body() != null ? response.body().string() : "";
-                            log.warn("{}: API error (page {}): {} - {}", 
-                                contract, pageCount, response.code(), response.message());
+                            log.warn("{}: API error from {} (page {}): {} - {}", 
+                                contract, baseUrl, pageCount, response.code(), response.message());
                         }
                         break;
                     }
