@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { getMag7Heatmap, getMag7Summary, getSmartMoneyTrades, getAggregatedSentimentTide } from "@/lib/api";
 import { SentimentTide } from "@/components/SentimentTide";
 import { FlowRiver } from "@/components/FlowRiver";
@@ -13,6 +13,24 @@ const TRACKED_STOCKS = ["AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "TSLA", "META"]
 const Terminal = () => {
   const [selectedStock, setSelectedStock] = useState<string | null>(null);
   const [lastUpdate, setLastUpdate] = useState(new Date());
+
+  const API_BASE = "https://web-production-43dc4.up.railway.app/api";
+
+  const { data: systemHealth } = useQuery({
+    queryKey: ["system-health-terminal"],
+    queryFn: async () => {
+      const res = await fetch(`${API_BASE}/system/health`);
+      return res.json();
+    },
+    refetchInterval: 10000,
+  });
+
+  const generateDemoData = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`${API_BASE}/pulse/load-historical-data?daysBack=1&clearFirst=false`, { method: "POST" });
+      return res.json();
+    },
+  });
 
   // Fetch MAG7 heatmap data
   const { data: heatmapData } = useQuery({
@@ -105,6 +123,27 @@ const Terminal = () => {
           )}
         </div>
       </div>
+
+      {systemHealth && systemHealth.database?.totalTrades === 0 && (
+        <div className="bg-yellow-500/10 border border-yellow-500/30 text-yellow-700 dark:text-yellow-300 px-6 py-3">
+          <div className="flex items-center justify-between max-w-6xl mx-auto">
+            <div className="text-sm">
+              No trades in the backend yet. You can generate demo data to see the UI in action.
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => generateDemoData.mutate()}
+                className="px-3 py-1.5 rounded bg-primary text-primary-foreground text-sm"
+              >
+                Generate 1 Day Demo Data
+              </button>
+              <a href="/admin" className="text-sm underline">
+                Open Admin Debug
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Main Terminal Layout */}
       <div className="flex-1 flex">
