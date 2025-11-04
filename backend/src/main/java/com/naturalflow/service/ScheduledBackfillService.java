@@ -101,15 +101,15 @@ public class ScheduledBackfillService {
 
     /**
      * Fetch trades for a specific ticker using Polygon Options Trades API
-     * Endpoint: GET /v3/trades/options?underlying_ticker={TICKER}
+     * Endpoint: GET /v3/trades/O:{TICKER}*
      * 
      * This fetches all options trades for the underlying ticker with pagination support
      */
     private int fetchTradesForTicker(String ticker, long startTimestamp, long endTimestamp) {
         try {
-            // Use Polygon v3 options trades API with underlying_ticker filter
+            // Use Polygon v3 options trades API with O:TICKER* format
             String url = String.format(
-                "https://api.polygon.io/v3/trades/options?underlying_ticker=%s&timestamp.gte=%d&timestamp.lte=%d&order=asc&sort=timestamp&limit=5000&apiKey=%s",
+                "https://api.polygon.io/v3/trades/O:%s*?timestamp.gte=%d&timestamp.lte=%d&order=asc&sort=timestamp&limit=5000&apiKey=%s",
                 ticker,
                 startTimestamp * 1000000, // Convert to nanoseconds
                 endTimestamp * 1000000,   // Convert to nanoseconds
