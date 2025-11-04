@@ -114,11 +114,10 @@ public class SystemController {
         } else {
             // All tickers - unusual volume detection
             Map<String, Object> response = new HashMap<>();
-            List<Map<String, Object>> unusualVolume = patternService.detectUnusualVolume(
-                List.of(Constants.MAG7_TICKERS), 24);
+            List<Map<String, Object>> unusualVolume = patternService.detectUnusualVolume(Constants.MAG7_TICKERS, 24);
             
             response.put("unusualVolume", unusualVolume);
-            response.put("scannedTickers", Constants.MAG7_TICKERS.length);
+            response.put("scannedTickers", Constants.MAG7_TICKERS.size());
             response.put("scannedAt", Instant.now());
             
             return ResponseEntity.ok(response);
