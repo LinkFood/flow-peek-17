@@ -1,8 +1,9 @@
 import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { getMag7Heatmap, getMag7Summary, getSmartMoneyTrades, getAggregatedSentimentTide } from "@/lib/api";
+import { getMag7Heatmap, getMag7Summary, getSmartMoneyTrades, getAggregatedSentimentTide, getStrikeConcentration } from "@/lib/api";
 import { SentimentTide } from "@/components/SentimentTide";
 import { FlowRiver } from "@/components/FlowRiver";
+import { StrikeScorecard } from "@/components/StrikeScorecard";
 import { detectSentimentFlips, getLatestFlip, formatFlipMessage, hasRecentFlip } from "@/lib/sentimentFlip";
 import { generateMarketNarrative } from "@/lib/narrativeEngine";
 
@@ -57,6 +58,14 @@ const Terminal = () => {
   const { data: tideData } = useQuery({
     queryKey: ["sentiment-tide"],
     queryFn: () => getAggregatedSentimentTide(TRACKED_STOCKS, 24, 60),
+    refetchInterval: 10000,
+  });
+
+  // Fetch strike concentration for selected stock
+  const { data: strikeData } = useQuery({
+    queryKey: ["strike-concentration", selectedStock],
+    queryFn: () => selectedStock ? getStrikeConcentration(selectedStock, 48, 2) : null,
+    enabled: !!selectedStock,
     refetchInterval: 10000,
   });
 
@@ -386,6 +395,15 @@ const Terminal = () => {
                   </div>
                 </div>
               </div>
+            </div>
+          )}
+
+          {selectedStock && strikeData && strikeData.strikes.length > 0 && (
+            <div className="mt-6 pt-6 border-t border-border">
+              <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">
+                Strike Concentration (Top 5)
+              </div>
+              <StrikeScorecard strikes={strikeData.strikes.slice(0, 5)} compact />
             </div>
           )}
         </div>

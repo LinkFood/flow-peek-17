@@ -3,6 +3,7 @@ package com.naturalflow.controller;
 import com.naturalflow.config.Constants;
 import com.naturalflow.service.FlowService;
 import com.naturalflow.service.MarketPulseService;
+import com.naturalflow.service.SmartMoneyService;
 import com.naturalflow.service.HistoricalDataLoader;
 import com.naturalflow.service.ScheduledBackfillService;
 import org.springframework.http.ResponseEntity;
@@ -23,13 +24,16 @@ public class MarketPulseController {
 
     private final MarketPulseService pulseService;
     private final FlowService flowService;
+    private final SmartMoneyService smartMoneyService;
     private final HistoricalDataLoader dataLoader;
     private final ScheduledBackfillService scheduledBackfillService;
 
     public MarketPulseController(MarketPulseService pulseService, FlowService flowService, 
+                                 SmartMoneyService smartMoneyService,
                                  HistoricalDataLoader dataLoader, ScheduledBackfillService scheduledBackfillService) {
         this.pulseService = pulseService;
         this.flowService = flowService;
+        this.smartMoneyService = smartMoneyService;
         this.dataLoader = dataLoader;
         this.scheduledBackfillService = scheduledBackfillService;
     }
@@ -173,6 +177,79 @@ public class MarketPulseController {
 
         List<Map<String, Object>> unusual = pulseService.getUnusualActivity(limit);
         return ResponseEntity.ok(unusual);
+    }
+
+    /**
+     * GET /api/pulse/strikes
+     * Returns strike-level concentration data with flow grades
+     * Shows where institutional money is concentrating positions
+     */
+    @GetMapping("/strikes")
+    public ResponseEntity<Map<String, Object>> getStrikeConcentration(
+            @RequestParam String symbol,
+            @RequestParam(defaultValue = "48") int lookbackHours,
+            @RequestParam(defaultValue = "2") int minHits) {
+
+        // Verify it's a MAG7 stock
+        if (!Constants.MAG7_TICKERS.contains(symbol.toUpperCase())) {
+            Map<String, Object> error = new HashMap<>();
+            error.put("error", "Only MAG7 stocks supported: " + String.join(", ", Constants.MAG7_TICKERS));
+            return ResponseEntity.badRequest().body(error);
+        }
+
+        List<SmartMoneyService.StrikeConcentration> strikes = 
+            smartMoneyService.getStrikeConcentration(symbol, lookbackHours);
+
+        // Filter by minHits and add flow grades
+        List<Map<String, Object>> enrichedStrikes = strikes.stream()
+            .filter(strike -> strike.getTradeCount() >= minHits)
+            .map(strike -> {
+                Map<String, Object> strikeMap = new HashMap<>();
+                strikeMap.put("strike", strike.getStrike());
+                strikeMap.put("expiry", strike.getExpiry());
+                strikeMap.put("side", strike.getSide());
+                strikeMap.put("dte", strike.getDte());
+                strikeMap.put("hitCount", strike.getTradeCount());
+                strikeMap.put("totalPremium", strike.getTotalPremium());
+                strikeMap.put("totalSize", strike.getTotalSize());
+                strikeMap.put("flowGrade", calculateFlowGrade(strike));
+                return strikeMap;
+            })
+            .collect(java.util.stream.Collectors.toList());
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("symbol", symbol.toUpperCase());
+        response.put("lookbackHours", lookbackHours);
+        response.put("strikes", enrichedStrikes);
+        response.put("count", enrichedStrikes.size());
+
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Calculate flow grade based on hit count and premium
+     */
+    private String calculateFlowGrade(SmartMoneyService.StrikeConcentration strike) {
+        int hits = strike.getTradeCount();
+        BigDecimal premium = strike.getTotalPremium();
+
+        // A+: 5+ hits, $500K+ premium
+        if (hits >= 5 && premium.compareTo(new BigDecimal("500000")) >= 0) {
+            return "A+";
+        }
+        // A: 4+ hits, $250K+ premium
+        if (hits >= 4 && premium.compareTo(new BigDecimal("250000")) >= 0) {
+            return "A";
+        }
+        // B: 3+ hits, $100K+ premium
+        if (hits >= 3 && premium.compareTo(new BigDecimal("100000")) >= 0) {
+            return "B";
+        }
+        // C: 2+ hits, $50K+ premium
+        if (hits >= 2 && premium.compareTo(new BigDecimal("50000")) >= 0) {
+            return "C";
+        }
+        return "D";
     }
 
     /**

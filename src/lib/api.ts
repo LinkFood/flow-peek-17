@@ -276,6 +276,24 @@ export interface Mag7Summary {
   timestamp: number;
 }
 
+export interface StrikeConcentration {
+  strike: number;
+  expiry: string;
+  side: 'CALL' | 'PUT';
+  dte: number;
+  hitCount: number;
+  totalPremium: number;
+  totalSize: number;
+  flowGrade: 'A+' | 'A' | 'B' | 'C' | 'D';
+}
+
+export interface StrikeConcentrationResponse {
+  symbol: string;
+  lookbackHours: number;
+  strikes: StrikeConcentration[];
+  count: number;
+}
+
 /**
  * Get MAG7 heatmap showing call/put sentiment
  */
@@ -362,6 +380,28 @@ export async function getUnusualActivity(limit: number = 10): Promise<UnusualAct
     return response.json();
   } catch (error) {
     console.error('Error fetching unusual activity:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get strike concentration data (where institutional money is concentrating)
+ */
+export async function getStrikeConcentration(
+  symbol: string,
+  lookbackHours: number = 48,
+  minHits: number = 2
+): Promise<StrikeConcentrationResponse> {
+  try {
+    const response = await fetch(
+      `${PULSE_API_URL}/strikes?symbol=${symbol}&lookbackHours=${lookbackHours}&minHits=${minHits}`
+    );
+    if (!response.ok) {
+      throw new Error(`Failed to fetch strike concentration: ${response.status}`);
+    }
+    return response.json();
+  } catch (error) {
+    console.error('Error fetching strike concentration:', error);
     throw error;
   }
 }

@@ -5,11 +5,13 @@ import { FilterBar } from "@/components/FilterBar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatPremium, formatTime, formatDate } from "@/lib/mockData";
-import { getBuildingFlow, getSummary, getFlowTimeline } from "@/lib/api";
-import { BarChart3, Activity, TrendingUp } from "lucide-react";
+import { getBuildingFlow, getSummary, getFlowTimeline, getStrikeConcentration } from "@/lib/api";
+import { BarChart3, Activity, TrendingUp, Target } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { StrikeScorecard } from "@/components/StrikeScorecard";
 
 const TickerView = () => {
   const { symbol } = useParams<{ symbol: string }>();
@@ -46,6 +48,13 @@ const TickerView = () => {
   const { data: timelineData, isLoading: isLoadingTimeline } = useQuery({
     queryKey: ["timeline", ticker, timeWindowHours],
     queryFn: () => getFlowTimeline(ticker, timeWindowHours, 60),
+    refetchInterval: 30000,
+  });
+
+  // Fetch strike concentration
+  const { data: strikeData, isLoading: isLoadingStrikes } = useQuery({
+    queryKey: ["strikes", ticker, timeWindowHours],
+    queryFn: () => getStrikeConcentration(ticker, timeWindowHours * 2, 2),
     refetchInterval: 30000,
   });
 
@@ -187,68 +196,121 @@ const TickerView = () => {
           </Card>
         </div>
 
-        {/* Flow Timeline Chart */}
+        {/* Tabs for Timeline and Strike Heatmap */}
         <Card className="mb-6">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <TrendingUp className="h-5 w-5 text-primary" />
-              Premium Flow Timeline
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {isLoadingTimeline ? (
-              <Skeleton className="h-64 w-full" />
-            ) : timelineData && timelineData.dataPoints.length > 0 ? (
-              <ResponsiveContainer width="100%" height={300}>
-                <LineChart data={timelineData.dataPoints}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-                  <XAxis
-                    dataKey="timestamp"
-                    tickFormatter={(ts) => new Date(ts).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
-                    stroke="#888"
-                  />
-                  <YAxis
-                    tickFormatter={(value) => `$${(value / 1000).toFixed(0)}K`}
-                    stroke="#888"
-                  />
-                  <Tooltip
-                    labelFormatter={(ts) => new Date(ts).toLocaleString()}
-                    formatter={(value: number) => [`$${value.toLocaleString()}`, '']}
-                    contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid #333' }}
-                  />
-                  <Legend />
-                  <Line
-                    type="monotone"
-                    dataKey="callPremium"
-                    stroke="#22c55e"
-                    strokeWidth={2}
-                    name="Call Premium"
-                    dot={false}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="putPremium"
-                    stroke="#ef4444"
-                    strokeWidth={2}
-                    name="Put Premium"
-                    dot={false}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="netFlow"
-                    stroke="#3b82f6"
-                    strokeWidth={2}
-                    name="Net Flow"
-                    dot={false}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="h-64 flex items-center justify-center text-muted-foreground">
-                No timeline data available. Markets may be closed or no data for {ticker}.
-              </div>
-            )}
-          </CardContent>
+          <Tabs defaultValue="timeline" className="w-full">
+            <TabsList className="w-full justify-start border-b rounded-none">
+              <TabsTrigger value="timeline" className="flex items-center gap-2">
+                <TrendingUp className="h-4 w-4" />
+                Premium Flow Timeline
+              </TabsTrigger>
+              <TabsTrigger value="strikes" className="flex items-center gap-2">
+                <Target className="h-4 w-4" />
+                Strike Heatmap
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="timeline" className="p-6">
+              {isLoadingTimeline ? (
+                <Skeleton className="h-64 w-full" />
+              ) : timelineData && timelineData.dataPoints.length > 0 ? (
+                <ResponsiveContainer width="100%" height={300}>
+                  <LineChart data={timelineData.dataPoints}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+                    <XAxis
+                      dataKey="timestamp"
+                      tickFormatter={(ts) => new Date(ts).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                      stroke="#888"
+                    />
+                    <YAxis
+                      tickFormatter={(value) => `$${(value / 1000).toFixed(0)}K`}
+                      stroke="#888"
+                    />
+                    <Tooltip
+                      labelFormatter={(ts) => new Date(ts).toLocaleString()}
+                      formatter={(value: number) => [`$${value.toLocaleString()}`, '']}
+                      contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid #333' }}
+                    />
+                    <Legend />
+                    <Line
+                      type="monotone"
+                      dataKey="callPremium"
+                      stroke="#22c55e"
+                      strokeWidth={2}
+                      name="Call Premium"
+                      dot={false}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="putPremium"
+                      stroke="#ef4444"
+                      strokeWidth={2}
+                      name="Put Premium"
+                      dot={false}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="netFlow"
+                      stroke="#3b82f6"
+                      strokeWidth={2}
+                      name="Net Flow"
+                      dot={false}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-64 flex items-center justify-center text-muted-foreground">
+                  No timeline data available. Markets may be closed or no data for {ticker}.
+                </div>
+              )}
+            </TabsContent>
+
+            <TabsContent value="strikes" className="p-6">
+              {isLoadingStrikes ? (
+                <div className="space-y-3">
+                  <Skeleton className="h-24 w-full" />
+                  <Skeleton className="h-24 w-full" />
+                  <Skeleton className="h-24 w-full" />
+                </div>
+              ) : strikeData && strikeData.strikes.length > 0 ? (
+                <div>
+                  <div className="mb-4 flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-muted-foreground">
+                        Showing {strikeData.count} concentrated strikes with 2+ hits
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Lookback: {strikeData.lookbackHours}h • Sorted by total premium
+                      </p>
+                    </div>
+                    <div className="flex gap-2 text-xs">
+                      <div className="flex items-center gap-1">
+                        <div className="w-3 h-3 rounded bg-green-500/20 border border-green-500/50" />
+                        <span>A+ Grade</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <div className="w-3 h-3 rounded bg-green-500/10 border border-green-500/30" />
+                        <span>A Grade</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <div className="w-3 h-3 rounded bg-yellow-500/10 border border-yellow-500/30" />
+                        <span>B Grade</span>
+                      </div>
+                    </div>
+                  </div>
+                  <StrikeScorecard strikes={strikeData.strikes} />
+                </div>
+              ) : (
+                <div className="h-64 flex items-center justify-center text-muted-foreground">
+                  <div className="text-center">
+                    <Target className="h-12 w-12 mx-auto mb-3 opacity-30" />
+                    <p>No strike concentration detected for {ticker}</p>
+                    <p className="text-xs mt-2">Try adjusting the time window or check during market hours</p>
+                  </div>
+                </div>
+              )}
+            </TabsContent>
+          </Tabs>
         </Card>
 
         <div className="bg-card rounded-lg border border-border shadow-md overflow-hidden">
