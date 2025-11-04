@@ -12,9 +12,15 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 /**
  * Scheduled Backfill Service - Fetches recent real options trades from Polygon REST API
@@ -42,6 +48,12 @@ public class ScheduledBackfillService {
 
     @Value("${polygon.backfill.enabled:true}")
     private boolean enabled;
+
+    @Value("${polygon.backfill.contracts-per-ticker:40}")
+    private int contractsPerTicker;
+
+    @Value("${polygon.backfill.days-to-expiry-max:14}")
+    private int daysToExpiryMax;
 
     private final FlowService flowService;
     private final OkHttpClient httpClient;
@@ -105,35 +117,174 @@ public class ScheduledBackfillService {
     }
 
     /**
-     * Fetch trades for a specific ticker using Polygon Options Trades API
-     * Endpoint: GET /v3/trades/O:{TICKER}*
-     * 
-     * This fetches all options trades for the underlying ticker with pagination support
+     * List option contracts for an underlying ticker
+     * Uses Polygon Reference API: GET /v3/reference/options/contracts
      */
-    private int fetchTradesForTicker(String ticker, long startTimestamp, long endTimestamp) {
+    private List<String> listContractsForUnderlying(String underlying, LocalDate asOf) {
         try {
-            // Use Polygon v3 options trades API with O:TICKER* format
             String url = String.format(
-                "%s/v3/trades/O:%s*?timestamp.gte=%d&timestamp.lte=%d&order=asc&sort=timestamp&limit=5000&apiKey=%s",
+                "%s/v3/reference/options/contracts?underlying_ticker=%s&as_of=%s&expired=false&order=asc&sort=expiration_date&limit=%d&apiKey=%s",
                 polygonBaseUrl,
-                ticker,
-                startTimestamp * 1000000, // Convert to nanoseconds
-                endTimestamp * 1000000,   // Convert to nanoseconds
+                underlying,
+                asOf.format(DateTimeFormatter.ISO_LOCAL_DATE),
+                contractsPerTicker * 2, // Fetch more and filter by expiry
                 apiKey
             );
 
+            log.debug("Fetching contracts for {}: {}", underlying, url.replace(apiKey, "***"));
+
+            Request request = new Request.Builder()
+                .url(url)
+                .get()
+                .build();
+
+            try (Response response = httpClient.newCall(request).execute()) {
+                if (!response.isSuccessful()) {
+                    String errorBody = response.body() != null ? response.body().string() : "";
+                    log.warn("Failed to fetch contracts for {}: {} - {} | Body: {}", 
+                        underlying, response.code(), response.message(), errorBody.substring(0, Math.min(200, errorBody.length())));
+                    return new ArrayList<>();
+                }
+
+                if (response.body() == null) {
+                    return new ArrayList<>();
+                }
+
+                String json = response.body().string();
+                JsonNode root = objectMapper.readTree(json);
+
+                if (!root.has("status") || !root.get("status").asText().equals("OK")) {
+                    log.warn("Non-OK status for {} contracts: {}", underlying, 
+                        root.has("status") ? root.get("status").asText() : "unknown");
+                    return new ArrayList<>();
+                }
+
+                JsonNode results = root.get("results");
+                if (results == null || !results.isArray() || results.size() == 0) {
+                    log.info("No contracts found for {}", underlying);
+                    return new ArrayList<>();
+                }
+
+                // Filter contracts by expiry date and limit
+                LocalDate maxExpiry = asOf.plusDays(daysToExpiryMax);
+                List<String> contracts = new ArrayList<>();
+                
+                for (JsonNode contract : results) {
+                    if (contracts.size() >= contractsPerTicker) {
+                        break;
+                    }
+                    
+                    String ticker = contract.get("ticker").asText();
+                    String expiryStr = contract.get("expiration_date").asText();
+                    LocalDate expiry = LocalDate.parse(expiryStr);
+                    
+                    // Only include contracts expiring within the max days window
+                    if (!expiry.isAfter(maxExpiry)) {
+                        contracts.add(ticker);
+                    }
+                }
+
+                log.info("Selected {} contracts for {} (expiring within {} days)", 
+                    contracts.size(), underlying, daysToExpiryMax);
+                return contracts;
+
+            } catch (Exception e) {
+                log.error("Error processing contracts response for {}: {}", underlying, e.getMessage());
+                return new ArrayList<>();
+            }
+
+        } catch (Exception e) {
+            log.error("Error fetching contracts for {}: {}", underlying, e.getMessage());
+            return new ArrayList<>();
+        }
+    }
+
+    /**
+     * Fetch trades for a specific ticker using contract discovery approach
+     * 
+     * Steps:
+     * 1. List option contracts for the underlying ticker
+     * 2. For each contract, fetch trades from Polygon Trades API
+     * 3. Handle pagination via next_url
+     */
+    private int fetchTradesForTicker(String ticker, long startTimestamp, long endTimestamp) {
+        try {
             log.info("Fetching {} trades from {} to {}", 
                 ticker,
                 Instant.ofEpochMilli(startTimestamp),
                 Instant.ofEpochMilli(endTimestamp));
 
+            // Step 1: Get contracts for this ticker
+            LocalDate asOf = LocalDate.now();
+            List<String> contracts = listContractsForUnderlying(ticker, asOf);
+            
+            if (contracts.isEmpty()) {
+                log.info("{}: No contracts found, skipping", ticker);
+                return 0;
+            }
+
+            int totalIngested = 0;
+            int contractsProcessed = 0;
+
+            // Step 2: Fetch trades for each contract
+            for (String contract : contracts) {
+                try {
+                    int ingested = fetchTradesForContract(contract, startTimestamp, endTimestamp);
+                    totalIngested += ingested;
+                    contractsProcessed++;
+
+                    // Throttle to avoid rate limits
+                    if (contractsProcessed < contracts.size()) {
+                        Thread.sleep(150); // 150ms between contract calls
+                    }
+
+                } catch (Exception e) {
+                    log.error("Error fetching trades for contract {}: {}", contract, e.getMessage());
+                }
+            }
+
+            if (totalIngested > 0) {
+                log.info("📊 {}: {} trades ingested from {} contracts", 
+                    ticker, totalIngested, contractsProcessed);
+            } else {
+                log.info("{}: 0 trades ingested from {} contracts", ticker, contractsProcessed);
+            }
+
+            return totalIngested;
+
+        } catch (Exception e) {
+            log.error("Error fetching {} trades: {}", ticker, e.getMessage());
+            return 0;
+        }
+    }
+
+    /**
+     * Fetch trades for a specific options contract
+     * Endpoint: GET /v3/trades/{contract}
+     */
+    private int fetchTradesForContract(String contract, long startTimestamp, long endTimestamp) {
+        try {
+            String url = String.format(
+                "%s/v3/trades/%s?timestamp.gte=%d&timestamp.lte=%d&order=asc&sort=timestamp&limit=50000&apiKey=%s",
+                polygonBaseUrl,
+                contract,
+                startTimestamp * 1000000, // Convert to nanoseconds
+                endTimestamp * 1000000,
+                apiKey
+            );
+
             int totalIngested = 0;
             int pageCount = 0;
             String nextUrl = url;
 
-            // Pagination loop (cap at 10 pages to avoid infinite loops)
-            while (nextUrl != null && pageCount < 10) {
+            // Pagination loop (cap at 5 pages per contract)
+            while (nextUrl != null && pageCount < 5) {
                 pageCount++;
+                
+                // If next_url uses api.polygon.io, rewrite to our base URL
+                if (nextUrl.startsWith("https://api.polygon.io")) {
+                    nextUrl = nextUrl.replace("https://api.polygon.io", polygonBaseUrl);
+                }
                 
                 Request request = new Request.Builder()
                     .url(nextUrl)
@@ -142,62 +293,48 @@ public class ScheduledBackfillService {
 
                 try (Response response = httpClient.newCall(request).execute()) {
                     if (!response.isSuccessful()) {
-                        String errorBody = response.body() != null ? response.body().string() : "";
-                        log.warn("Polygon API error for {} (page {}): {} - {} | Body: {}", 
-                            ticker, pageCount, response.code(), response.message(), errorBody);
+                        if (response.code() == 404) {
+                            // 404 is expected for contracts with no trades
+                            log.debug("{}: No trades found (404)", contract);
+                        } else {
+                            String errorBody = response.body() != null ? response.body().string() : "";
+                            log.warn("{}: API error (page {}): {} - {}", 
+                                contract, pageCount, response.code(), response.message());
+                        }
                         break;
                     }
 
                     if (response.body() == null) {
-                        log.warn("Empty response for {} (page {})", ticker, pageCount);
                         break;
                     }
 
                     String json = response.body().string();
                     JsonNode root = objectMapper.readTree(json);
 
-                    // Check status
                     if (!root.has("status") || !root.get("status").asText().equals("OK")) {
-                        String status = root.has("status") ? root.get("status").asText() : "unknown";
-                        log.info("❌ Non-OK status for {} (page {}): {} - Response sample: {}", 
-                            ticker, pageCount, status, json.substring(0, Math.min(500, json.length())));
                         break;
                     }
 
-                    // Parse results
                     JsonNode results = root.get("results");
                     if (results == null || !results.isArray() || results.size() == 0) {
-                        log.info("{}: 0 trades returned (page {}). Response sample: {}", 
-                            ticker, pageCount, json.substring(0, Math.min(500, json.length())));
                         break;
                     }
 
                     // Ingest trades from this page
-                    int pageIngested = 0;
-                    int pageSkipped = 0;
                     for (JsonNode trade : results) {
                         try {
                             flowService.ingestFromRawJson(trade.toString());
-                            pageIngested++;
+                            totalIngested++;
                         } catch (Exception e) {
-                            pageSkipped++;
-                            if (pageSkipped <= 3) {
-                                // Log first 3 skipped trades to see why
-                                log.info("Skipped trade: {} | Sample: {}", 
-                                    e.getMessage(), 
-                                    trade.toString().substring(0, Math.min(200, trade.toString().length())));
-                            }
+                            // Skip invalid trades silently
                         }
                     }
 
-                    totalIngested += pageIngested;
-                    log.info("{}: page {} - {} ingested, {} skipped from {} results", 
-                        ticker, pageCount, pageIngested, pageSkipped, results.size());
+                    log.debug("{}: page {} - {} trades ingested", contract, pageCount, results.size());
 
                     // Check for next page
                     if (root.has("next_url")) {
                         nextUrl = root.get("next_url").asText();
-                        // Add API key to next_url if not present
                         if (!nextUrl.contains("apiKey=")) {
                             nextUrl += "&apiKey=" + apiKey;
                         }
@@ -207,24 +344,19 @@ public class ScheduledBackfillService {
                     }
 
                 } catch (Exception e) {
-                    log.error("Error processing {} response (page {}): {}", ticker, pageCount, e.getMessage());
+                    log.error("{}: Error processing response (page {}): {}", contract, pageCount, e.getMessage());
                     break;
                 }
             }
 
             if (totalIngested > 0) {
-                log.info("📊 {}: {} trades ingested total across {} pages (window {} - {})", 
-                    ticker, totalIngested, pageCount,
-                    Instant.ofEpochMilli(startTimestamp),
-                    Instant.ofEpochMilli(endTimestamp));
-            } else {
-                log.info("{}: 0 trades ingested", ticker);
+                log.info("{}: {} trades ingested across {} pages", contract, totalIngested, pageCount);
             }
 
             return totalIngested;
 
         } catch (Exception e) {
-            log.error("Error fetching {} trades: {}", ticker, e.getMessage());
+            log.error("Error fetching trades for {}: {}", contract, e.getMessage());
             return 0;
         }
     }
