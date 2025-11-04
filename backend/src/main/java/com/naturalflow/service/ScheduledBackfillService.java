@@ -37,6 +37,9 @@ public class ScheduledBackfillService {
     @Value("${polygon.api.key}")
     private String apiKey;
 
+    @Value("${polygon.api.base-url:https://delayed.polygon.io}")
+    private String polygonBaseUrl;
+
     @Value("${polygon.backfill.enabled:true}")
     private boolean enabled;
 
@@ -71,8 +74,8 @@ public class ScheduledBackfillService {
 
         log.info("🔄 Starting scheduled backfill for {} tickers...", TRACKED_TICKERS.length);
 
-        long endTime = System.currentTimeMillis(); // Now (real-time)
-        long startTime = endTime - (5 * 60 * 1000); // 5 minutes ago
+        long endTime = System.currentTimeMillis() - (15 * 60 * 1000); // 15 min ago (delayed feed)
+        long startTime = endTime - (5 * 60 * 1000); // 5 min window
 
         int totalIngested = 0;
         int tickersProcessed = 0;
@@ -111,7 +114,8 @@ public class ScheduledBackfillService {
         try {
             // Use Polygon v3 options trades API with O:TICKER* format
             String url = String.format(
-                "https://api.polygon.io/v3/trades/O:%s*?timestamp.gte=%d&timestamp.lte=%d&order=asc&sort=timestamp&limit=5000&apiKey=%s",
+                "%s/v3/trades/O:%s*?timestamp.gte=%d&timestamp.lte=%d&order=asc&sort=timestamp&limit=5000&apiKey=%s",
+                polygonBaseUrl,
                 ticker,
                 startTimestamp * 1000000, // Convert to nanoseconds
                 endTimestamp * 1000000,   // Convert to nanoseconds
@@ -138,8 +142,9 @@ public class ScheduledBackfillService {
 
                 try (Response response = httpClient.newCall(request).execute()) {
                     if (!response.isSuccessful()) {
-                        log.warn("Polygon API error for {} (page {}): {} - {}", 
-                            ticker, pageCount, response.code(), response.message());
+                        String errorBody = response.body() != null ? response.body().string() : "";
+                        log.warn("Polygon API error for {} (page {}): {} - {} | Body: {}", 
+                            ticker, pageCount, response.code(), response.message(), errorBody);
                         break;
                     }
 
