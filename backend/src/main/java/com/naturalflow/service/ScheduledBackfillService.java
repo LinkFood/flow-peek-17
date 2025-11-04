@@ -12,6 +12,8 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -274,9 +276,5 @@ public class ScheduledBackfillService {
             grandTotal, TRACKED_TICKERS.length, daysBack);
         
         return results;
-    }
-
-    private Map<String, Integer> HashMap() {
-        return new java.util.HashMap<>();
     }
 }
