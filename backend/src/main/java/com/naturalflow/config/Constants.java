@@ -25,9 +25,9 @@ public class Constants {
 
     /**
      * Minimum premium threshold for "smart money" trades
-     * Only track institutional-level trades ($100K+)
+     * Lowered to $50K to capture more institutional flow
      */
-    public static final BigDecimal SMART_MONEY_THRESHOLD = new BigDecimal("100000");
+    public static final BigDecimal SMART_MONEY_THRESHOLD = new BigDecimal("50000");
 
     /**
      * Time windows for analysis (in hours)
