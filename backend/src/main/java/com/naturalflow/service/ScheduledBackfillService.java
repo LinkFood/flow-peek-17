@@ -2,6 +2,7 @@ package com.naturalflow.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
@@ -344,13 +345,31 @@ public class ScheduledBackfillService {
                     }
 
                     // Ingest trades from this page
+                    int skipped = 0;
                     for (JsonNode trade : results) {
                         try {
-                            flowService.ingestFromRawJson(trade.toString());
+                            // Enrich trade JSON with option_symbol and underlying before ingestion
+                            ObjectNode enriched = trade.deepCopy();
+                            enriched.put("option_symbol", contract);
+                            
+                            // Extract underlying from contract (e.g., O:AAPL -> AAPL)
+                            if (contract.startsWith("O:")) {
+                                String underlying = contract.substring(2).replaceAll("(\\d.*)$", "").replaceAll("[^A-Z]", "");
+                                if (!underlying.isEmpty()) {
+                                    enriched.put("underlying", underlying);
+                                }
+                            }
+                            
+                            flowService.ingestFromRawJson(enriched.toString());
                             totalIngested++;
                         } catch (Exception e) {
                             // Skip invalid trades silently
+                            skipped++;
                         }
+                    }
+                    
+                    if (skipped > 0) {
+                        log.debug("{}: page {} - {} trades skipped during ingestion", contract, pageCount, skipped);
                     }
 
                     log.debug("{}: page {} - {} trades ingested", contract, pageCount, results.size());
