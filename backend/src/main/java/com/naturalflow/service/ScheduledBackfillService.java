@@ -71,8 +71,8 @@ public class ScheduledBackfillService {
 
         log.info("🔄 Starting scheduled backfill for {} tickers...", TRACKED_TICKERS.length);
 
-        long endTime = System.currentTimeMillis() - (15 * 60 * 1000); // 15 min ago (delayed feed)
-        long startTime = endTime - (15 * 60 * 1000); // 15 min before that (30 min window)
+        long endTime = System.currentTimeMillis(); // Now (real-time)
+        long startTime = endTime - (5 * 60 * 1000); // 5 minutes ago
 
         int totalIngested = 0;
         int tickersProcessed = 0;
