@@ -113,12 +113,15 @@ public class FlowService {
         }
 
         // ROBUST OPTION SYMBOL PARSING - handles multiple field names
-        // REST API: "ticker"
+        // REST API v3: "option_symbol" (NEW - most common)
+        // REST API v2: "ticker"
         // WebSocket: "sym" or "symbol"
         // Test data: "ticker" or "symbol"
         String optionSymbol = null;
         
-        if (root.has("ticker")) {
+        if (root.has("option_symbol")) {
+            optionSymbol = root.get("option_symbol").asText();
+        } else if (root.has("ticker")) {
             optionSymbol = root.get("ticker").asText();
         } else if (root.has("sym")) {
             optionSymbol = root.get("sym").asText();
@@ -126,9 +129,12 @@ public class FlowService {
             optionSymbol = root.get("symbol").asText();
         }
         
-        // If no symbol found, skip this trade
+        // If no symbol found, log and skip this trade
         if (optionSymbol == null || optionSymbol.isEmpty()) {
-            throw new IllegalArgumentException("Missing option symbol - cannot ingest trade without ticker/sym/symbol field");
+            // Log available fields for debugging
+            StringBuilder fields = new StringBuilder();
+            root.fieldNames().forEachRemaining(f -> fields.append(f).append(" "));
+            throw new IllegalArgumentException("Missing option symbol - cannot ingest trade. Available fields: " + fields);
         }
         
         flow.setOptionSymbol(optionSymbol);

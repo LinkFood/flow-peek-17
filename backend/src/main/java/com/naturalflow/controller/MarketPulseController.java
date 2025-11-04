@@ -239,4 +239,30 @@ public class MarketPulseController {
             return ResponseEntity.internalServerError().body(error);
         }
     }
+
+    /**
+     * POST /api/pulse/load-30-days
+     * Load 30 days of historical data for pattern learning
+     * This is a one-time operation to populate the database
+     */
+    @PostMapping("/load-30-days")
+    public ResponseEntity<Map<String, Object>> load30Days(
+            @RequestParam(defaultValue = "30") int daysBack) {
+        
+        try {
+            Map<String, Integer> results = scheduledBackfillService.loadHistoricalData(daysBack);
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("daysBack", daysBack);
+            response.put("results", results);
+            response.put("totalTrades", results.values().stream().mapToInt(Integer::intValue).sum());
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            Map<String, Object> error = new HashMap<>();
+            error.put("success", false);
+            error.put("error", e.getMessage());
+            return ResponseEntity.internalServerError().body(error);
+        }
+    }
 }

@@ -80,6 +80,25 @@ export default function AdminDebug() {
     },
   });
 
+  // Load 30 days of real historical data mutation
+  const load30Days = useMutation({
+    mutationFn: async (daysBack: number) => {
+      const res = await fetch(`${API_BASE}/pulse/load-30-days?daysBack=${daysBack}`, {
+        method: "POST",
+      });
+      return res.json();
+    },
+    onSuccess: (data) => {
+      toast.success(`Loaded ${data.totalTrades} real trades from Polygon`);
+      refetchHealth();
+      refetchStats();
+      refetchTrades();
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to load historical data: ${error.message}`);
+    },
+  });
+
   return (
     <div className="min-h-screen bg-background p-6">
       <div className="max-w-7xl mx-auto space-y-6">
@@ -150,7 +169,7 @@ export default function AdminDebug() {
         </Card>
 
         {/* Actions */}
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-3 gap-4">
           <Card className="p-6">
             <h3 className="text-lg font-semibold mb-4">Generate Test Data</h3>
             <p className="text-sm text-muted-foreground mb-4">
@@ -180,6 +199,33 @@ export default function AdminDebug() {
               >
                 Generate 30 Days (~10,000 trades)
               </Button>
+            </div>
+          </Card>
+
+          <Card className="p-6">
+            <h3 className="text-lg font-semibold mb-4">Load Real Historical Data</h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              Load actual Polygon data from the past (works anytime, not just market hours).
+            </p>
+            <div className="space-y-2">
+              <Button
+                onClick={() => load30Days.mutate(7)}
+                disabled={load30Days.isPending}
+                variant="outline"
+                className="w-full"
+              >
+                Load 7 Days Real Data
+              </Button>
+              <Button
+                onClick={() => load30Days.mutate(30)}
+                disabled={load30Days.isPending}
+                className="w-full"
+              >
+                Load 30 Days Real Data
+              </Button>
+            </div>
+            <div className="mt-4 text-xs text-muted-foreground">
+              Note: Takes 1-2 minutes per ticker. Loads actual historical trades from Polygon API.
             </div>
           </Card>
 

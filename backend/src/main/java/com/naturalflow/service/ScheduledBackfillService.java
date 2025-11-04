@@ -152,7 +152,7 @@ public class ScheduledBackfillService {
                     // Check status
                     if (!root.has("status") || !root.get("status").asText().equals("OK")) {
                         String status = root.has("status") ? root.get("status").asText() : "unknown";
-                        log.warn("Non-OK status for {} (page {}): {} - Response: {}", 
+                        log.info("❌ Non-OK status for {} (page {}): {} - Response sample: {}", 
                             ticker, pageCount, status, json.substring(0, Math.min(500, json.length())));
                         break;
                     }
@@ -160,24 +160,32 @@ public class ScheduledBackfillService {
                     // Parse results
                     JsonNode results = root.get("results");
                     if (results == null || !results.isArray() || results.size() == 0) {
-                        log.info("{}: 0 trades returned (page {})", ticker, pageCount);
+                        log.info("{}: 0 trades returned (page {}). Response sample: {}", 
+                            ticker, pageCount, json.substring(0, Math.min(500, json.length())));
                         break;
                     }
 
                     // Ingest trades from this page
                     int pageIngested = 0;
+                    int pageSkipped = 0;
                     for (JsonNode trade : results) {
                         try {
                             flowService.ingestFromRawJson(trade.toString());
                             pageIngested++;
                         } catch (Exception e) {
-                            log.debug("Skipped trade (likely filtered): {}", e.getMessage());
+                            pageSkipped++;
+                            if (pageSkipped <= 3) {
+                                // Log first 3 skipped trades to see why
+                                log.info("Skipped trade: {} | Sample: {}", 
+                                    e.getMessage(), 
+                                    trade.toString().substring(0, Math.min(200, trade.toString().length())));
+                            }
                         }
                     }
 
                     totalIngested += pageIngested;
-                    log.info("{}: page {} - {} trades ingested from {} results", 
-                        ticker, pageCount, pageIngested, results.size());
+                    log.info("{}: page {} - {} ingested, {} skipped from {} results", 
+                        ticker, pageCount, pageIngested, pageSkipped, results.size());
 
                     // Check for next page
                     if (root.has("next_url")) {
@@ -223,5 +231,52 @@ public class ScheduledBackfillService {
         
         log.info("Manual backfill triggered for {} - {} hours back", ticker, hoursBack);
         return fetchTradesForTicker(ticker, startTime, endTime);
+    }
+
+    /**
+     * One-time historical backfill - loads 30 days of data for pattern learning
+     * Run this once to populate the database with historical trades
+     */
+    public Map<String, Integer> loadHistoricalData(int daysBack) {
+        log.info("🔄 Starting historical backfill for {} days...", daysBack);
+        
+        Map<String, Integer> results = new HashMap<>();
+        long endTime = System.currentTimeMillis() - (15 * 60 * 1000); // 15 min ago
+        
+        for (String ticker : TRACKED_TICKERS) {
+            int totalForTicker = 0;
+            
+            // Fetch in 24-hour chunks to avoid API limits
+            for (int day = 0; day < daysBack; day++) {
+                long chunkEnd = endTime - (day * 24 * 60 * 60 * 1000L);
+                long chunkStart = chunkEnd - (24 * 60 * 60 * 1000L);
+                
+                try {
+                    int count = fetchTradesForTicker(ticker, chunkStart, chunkEnd);
+                    totalForTicker += count;
+                    
+                    log.info("📊 {}: Day {} complete - {} trades ingested", ticker, day + 1, count);
+                    
+                    // Small delay to avoid rate limiting
+                    Thread.sleep(1000);
+                    
+                } catch (Exception e) {
+                    log.error("Error fetching historical data for {} day {}: {}", ticker, day, e.getMessage());
+                }
+            }
+            
+            results.put(ticker, totalForTicker);
+            log.info("✅ {}: Historical backfill complete - {} total trades", ticker, totalForTicker);
+        }
+        
+        int grandTotal = results.values().stream().mapToInt(Integer::intValue).sum();
+        log.info("🎉 Historical backfill complete: {} trades across {} tickers over {} days", 
+            grandTotal, TRACKED_TICKERS.length, daysBack);
+        
+        return results;
+    }
+
+    private Map<String, Integer> HashMap() {
+        return new java.util.HashMap<>();
     }
 }

@@ -69,16 +69,16 @@ public class PolygonWebSocketService {
     @PostConstruct
     public void connect() {
         if (!enabled) {
-            log.info("Polygon WebSocket is disabled. Set POLYGON_WEBSOCKET_ENABLED=true to enable.");
+            log.info("🔌 Polygon WebSocket is disabled. Set POLYGON_WEBSOCKET_ENABLED=true to enable.");
             return;
         }
 
         if (apiKey == null || apiKey.isEmpty() || apiKey.equals("your-polygon-api-key")) {
-            log.warn("Polygon API key not configured. Cannot connect to WebSocket.");
+            log.warn("❌ Polygon API key not configured. Cannot connect to WebSocket.");
             return;
         }
 
-        log.info("Connecting to Polygon WebSocket for real-time options flow...");
+        log.info("🔌 Connecting to Polygon WebSocket for real-time options flow...");
 
         // Use Polygon's delayed options WebSocket endpoint (15-min delay)
         Request request = new Request.Builder()
@@ -306,6 +306,11 @@ public class PolygonWebSocketService {
     }
 
     public boolean isConnected() {
-        return connected && authenticated;
+        boolean status = connected && authenticated;
+        if (!status && enabled) {
+            log.debug("WebSocket status: connected={}, authenticated={}, enabled={}", 
+                connected, authenticated, enabled);
+        }
+        return status;
     }
 }
