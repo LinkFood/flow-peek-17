@@ -582,3 +582,202 @@ export async function loadSampleData(days: number = 7, clearFirst: boolean = fal
  */
 export const TRACKED_TICKERS = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA', 'TSLA', 'META', 'SPY', 'QQQ'] as const;
 export type TrackedTicker = typeof TRACKED_TICKERS[number];
+
+// ===========================
+// FAST Timeline API (1-minute aggregations)
+// ===========================
+
+const TIMELINE_API_URL = import.meta.env.VITE_API_URL?.replace('/api/flow', '/api/timeline') || 'https://web-production-43dc4.up.railway.app/api/timeline';
+
+export interface FastTimelineDataPoint {
+  timestamp: string; // ISO string
+  callPremium: number;
+  putPremium: number;
+  callCount: number;
+  putCount: number;
+  netFlow: number;
+  cumulativeCall: number;
+  cumulativePut: number;
+  cumulativeNet: number;
+}
+
+export interface FastTimelineResponse {
+  ticker: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  dataPoints: FastTimelineDataPoint[];
+  totalBuckets: number;
+  finalCallPremium: number;
+  finalPutPremium: number;
+  finalNetFlow: number;
+}
+
+export interface FastMultiTickerResponse {
+  date: string;
+  startTime: string;
+  endTime: string;
+  tickers: {
+    [ticker: string]: {
+      dataPoints: FastTimelineDataPoint[];
+      totalBuckets: number;
+      finalCallPremium: number;
+      finalPutPremium: number;
+      finalNetFlow: number;
+    };
+  };
+  count: number;
+}
+
+/**
+ * Get fast chart data for a single ticker (uses 1-minute aggregations)
+ * Target: <200ms (vs 8+ seconds for old API)
+ */
+export async function getFastChartData(
+  ticker: string,
+  date: string, // YYYY-MM-DD
+  startTime: string = '09:30',
+  endTime: string = '16:00'
+): Promise<FastTimelineResponse> {
+  try {
+    const response = await fetch(
+      `${TIMELINE_API_URL}/chart?ticker=${ticker}&date=${date}&start=${startTime}&end=${endTime}`
+    );
+    if (!response.ok) {
+      throw new Error(`Failed to fetch fast chart data: ${response.status}`);
+    }
+    return response.json();
+  } catch (error) {
+    console.error('Error fetching fast chart data:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get fast chart data for multiple tickers at once (uses 1-minute aggregations)
+ * Target: <2 seconds for all 9 tickers (vs 90+ seconds for old API)
+ */
+export async function getFastMultiTickerChart(
+  tickers: string[],
+  date: string, // YYYY-MM-DD
+  startTime: string = '09:30',
+  endTime: string = '16:00'
+): Promise<FastMultiTickerResponse> {
+  try {
+    const response = await fetch(
+      `${TIMELINE_API_URL}/multi-ticker?tickers=${tickers.join(',')}&date=${date}&start=${startTime}&end=${endTime}`
+    );
+    if (!response.ok) {
+      throw new Error(`Failed to fetch fast multi-ticker chart: ${response.status}`);
+    }
+    return response.json();
+  } catch (error) {
+    console.error('Error fetching fast multi-ticker chart:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get recent timeline data (for real-time updates)
+ * Target: <100ms
+ */
+export async function getRecentTimeline(
+  ticker: string,
+  minutes: number = 15
+): Promise<{
+  ticker: string;
+  minutes: number;
+  dataPoints: FastTimelineDataPoint[];
+  count: number;
+}> {
+  try {
+    const response = await fetch(
+      `${TIMELINE_API_URL}/recent?ticker=${ticker}&minutes=${minutes}`
+    );
+    if (!response.ok) {
+      throw new Error(`Failed to fetch recent timeline: ${response.status}`);
+    }
+    return response.json();
+  } catch (error) {
+    console.error('Error fetching recent timeline:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get current minute snapshot for all tickers (for AI bot)
+ * Target: <50ms
+ */
+export async function getCurrentMinuteSnapshot(): Promise<{
+  bucketTime: string;
+  tickers: {
+    [ticker: string]: {
+      callPremium: number;
+      putPremium: number;
+      callCount: number;
+      putCount: number;
+      netFlow: number;
+      lastUpdated: string;
+    };
+  };
+  count: number;
+}> {
+  try {
+    const response = await fetch(`${TIMELINE_API_URL}/current-minute`);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch current minute snapshot: ${response.status}`);
+    }
+    return response.json();
+  } catch (error) {
+    console.error('Error fetching current minute snapshot:', error);
+    throw error;
+  }
+}
+
+/**
+ * Check timeline aggregation system health
+ */
+export async function getTimelineHealth(): Promise<{
+  status: string;
+  totalBuckets: number;
+  last24Hours: number;
+  activeTickers: string[];
+  activeTickerCount: number;
+  timestamp: string;
+}> {
+  try {
+    const response = await fetch(`${TIMELINE_API_URL}/health`);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch timeline health: ${response.status}`);
+    }
+    return response.json();
+  } catch (error) {
+    console.error('Error fetching timeline health:', error);
+    throw error;
+  }
+}
+
+/**
+ * Backfill aggregations for historical data (run once after deployment)
+ */
+export async function backfillAggregations(days: number = 7): Promise<{
+  success: boolean;
+  tradesProcessed: number;
+  daysBackfilled: number;
+  durationMs: number;
+  tradesPerSecond: number;
+  message: string;
+}> {
+  try {
+    const response = await fetch(`${TIMELINE_API_URL}/backfill?days=${days}`, {
+      method: 'POST'
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to backfill aggregations: ${response.status}`);
+    }
+    return response.json();
+  } catch (error) {
+    console.error('Error backfilling aggregations:', error);
+    throw error;
+  }
+}

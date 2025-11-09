@@ -11,6 +11,7 @@ import AIInsights from "./pages/AIInsights";
 import MarketPulse from "./pages/MarketPulse";
 import AdminDebug from "./pages/AdminDebug";
 import RiverDashboard from "./pages/RiverDashboard";
+import StrikesPage from "./pages/StrikesPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -27,6 +28,9 @@ const App = () => (
 
           {/* River Dashboard - Full Screen, Date-Aware */}
           <Route path="/river" element={<RiverDashboard />} />
+
+          {/* Strike Concentration Analysis */}
+          <Route path="/strikes" element={<StrikesPage />} />
 
           {/* Admin Debug Panel */}
           <Route path="/admin" element={<AdminDebug />} />
