@@ -108,6 +108,8 @@ public interface FlowRepository extends JpaRepository<OptionFlow, Long> {
      * Get all trades after a certain timestamp (for backfilling aggregations)
      * Only selects necessary fields to avoid LOB access issues
      */
-    @Query("SELECT f FROM OptionFlow f WHERE f.tsUtc >= :timestamp ORDER BY f.tsUtc ASC")
+    @Query("SELECT f.id, f.tsUtc, f.underlying, f.side, f.premium FROM OptionFlow f WHERE f.tsUtc >= :timestamp ORDER BY f.tsUtc ASC")
+    List<Object[]> findAllByTsUtcAfterForAggregation(@Param("timestamp") Instant timestamp);
+
     List<OptionFlow> findAllByTsUtcAfter(@Param("timestamp") Instant timestamp);
 }

@@ -85,6 +85,57 @@ public class TimelineAggregationService {
     }
 
     /**
+     * Backfill aggregations from projection (avoids LOB access)
+     */
+    @Transactional
+    public int backfillAggregationsFromProjection(List<Object[]> projections) {
+        int count = 0;
+        for (Object[] row : projections) {
+            try {
+                // row: [id, tsUtc, underlying, side, premium]
+                java.time.Instant tsUtc = (java.time.Instant) row[1];
+                String underlying = (String) row[2];
+                String side = (String) row[3];
+                java.math.BigDecimal premium = (java.math.BigDecimal) row[4];
+
+                if (underlying == null || side == null || premium == null) {
+                    continue; // Skip invalid rows
+                }
+
+                // Convert Instant to LocalDateTime and round down to the minute
+                LocalDateTime bucketTime = LocalDateTime.ofInstant(
+                    tsUtc,
+                    java.time.ZoneId.of("UTC")
+                ).truncatedTo(ChronoUnit.MINUTES);
+
+                // Find or create bucket
+                FlowTimeline1m bucket = timelineRepository
+                    .findByTickerAndBucketTime(underlying, bucketTime)
+                    .orElseGet(() -> new FlowTimeline1m(underlying, bucketTime));
+
+                // Add premium to appropriate side
+                if ("CALL".equals(side)) {
+                    bucket.addCallPremium(premium.doubleValue());
+                } else {
+                    bucket.addPutPremium(premium.doubleValue());
+                }
+
+                // Save updated bucket
+                timelineRepository.save(bucket);
+
+                count++;
+                if (count % 1000 == 0) {
+                    log.info("Backfilled {} trades", count);
+                }
+            } catch (Exception e) {
+                log.error("Failed to backfill row: {}", e.getMessage());
+            }
+        }
+        log.info("Backfill complete: {} trades aggregated", count);
+        return count;
+    }
+
+    /**
      * Clean up old aggregations (retention policy)
      * Keep last 30 days only
      */

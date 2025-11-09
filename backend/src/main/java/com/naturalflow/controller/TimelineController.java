@@ -321,12 +321,12 @@ public class TimelineController {
         try {
             long startTime = System.currentTimeMillis();
 
-            // Get all trades from the last N days
+            // Get all trades from the last N days (projection only - no LOB fields)
             Instant cutoff = Instant.now().minus(days, java.time.temporal.ChronoUnit.DAYS);
-            List<OptionFlow> flows = flowRepository.findAllByTsUtcAfter(cutoff);
+            List<Object[]> projections = flowRepository.findAllByTsUtcAfterForAggregation(cutoff);
 
-            // Backfill aggregations
-            int count = aggregationService.backfillAggregations(flows);
+            // Backfill aggregations from projection
+            int count = aggregationService.backfillAggregationsFromProjection(projections);
 
             long duration = System.currentTimeMillis() - startTime;
 
