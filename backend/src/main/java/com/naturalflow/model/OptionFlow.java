@@ -45,6 +45,7 @@ public class OptionFlow {
     private Integer size;
 
     @Lob
+    @Basic(fetch = FetchType.LAZY)
     @Column(name = "raw_json", columnDefinition = "TEXT")
     private String rawJson;
 
