@@ -19,10 +19,13 @@ public class FlowService {
 
     private final FlowRepository flowRepository;
     private final ObjectMapper objectMapper;
+    private final TimelineAggregationService aggregationService;
 
-    public FlowService(FlowRepository flowRepository, ObjectMapper objectMapper) {
+    public FlowService(FlowRepository flowRepository, ObjectMapper objectMapper,
+                       TimelineAggregationService aggregationService) {
         this.flowRepository = flowRepository;
         this.objectMapper = objectMapper;
+        this.aggregationService = aggregationService;
     }
 
     /**
@@ -241,7 +244,10 @@ public class FlowService {
         flow.setSrc("polygon");
         // END POLYGON-SPECIFIC MAPPING
 
-        return flowRepository.save(flow);
+        // Save the flow and update 1-minute aggregation
+        OptionFlow savedFlow = flowRepository.save(flow);
+        aggregationService.aggregateTrade(savedFlow);
+        return savedFlow;
     }
 
     /**
