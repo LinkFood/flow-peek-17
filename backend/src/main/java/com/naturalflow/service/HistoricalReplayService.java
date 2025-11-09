@@ -71,7 +71,7 @@ public class HistoricalReplayService {
             // Step 1: Fetch and save stock prices for the day
             log.info("📊 Fetching stock prices for {}...", date);
             Map<String, Integer> priceResults = stockPriceService.fetchAndSavePrices(
-                Arrays.asList(Constants.MAG7_TICKERS),
+                Constants.MAG7_TICKERS,
                 date
             );
             log.info("✅ Stock prices fetched: {}", priceResults);
