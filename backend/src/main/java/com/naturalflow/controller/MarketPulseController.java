@@ -108,18 +108,51 @@ public class MarketPulseController {
     }
 
     /**
-     * GET /api/pulse/timeline?symbol=AAPL
+     * GET /api/pulse/timeline?symbol=AAPL&cumulative=true
      * Returns premium flow over time for a ticker
      * Used for flow line charts (LIVE MODE - relative to now)
+     *
+     * @param cumulative If true, returns running totals (for river lines). If false, returns per-bucket sums.
      */
     @GetMapping("/timeline")
     public ResponseEntity<Map<String, Object>> getTimeline(
             @RequestParam String symbol,
             @RequestParam(defaultValue = "24") int windowHours,
-            @RequestParam(defaultValue = "60") int bucketMinutes) {
+            @RequestParam(defaultValue = "60") int bucketMinutes,
+            @RequestParam(defaultValue = "false") boolean cumulative) {
 
-        Map<String, Object> timeline = pulseService.getFlowTimeline(symbol, windowHours, bucketMinutes);
+        Map<String, Object> timeline = pulseService.getFlowTimeline(symbol, windowHours, bucketMinutes, cumulative);
         return ResponseEntity.ok(timeline);
+    }
+
+    /**
+     * GET /api/pulse/timeline-multi?symbols=AAPL,MSFT,SPY&cumulative=true
+     * Returns premium flow for multiple tickers at once
+     * Efficient way to fetch all 9 tickers in one API call
+     */
+    @GetMapping("/timeline-multi")
+    public ResponseEntity<Map<String, Object>> getTimelineMulti(
+            @RequestParam List<String> symbols,
+            @RequestParam(defaultValue = "24") int windowHours,
+            @RequestParam(defaultValue = "15") int bucketMinutes,
+            @RequestParam(defaultValue = "true") boolean cumulative) {
+
+        Map<String, Object> result = new HashMap<>();
+
+        for (String symbol : symbols) {
+            Map<String, Object> timeline = pulseService.getFlowTimeline(
+                symbol.toUpperCase(),
+                windowHours,
+                bucketMinutes,
+                cumulative
+            );
+            result.put(symbol.toUpperCase(), timeline);
+        }
+
+        result.put("count", symbols.size());
+        result.put("timestamp", java.time.Instant.now().toEpochMilli());
+
+        return ResponseEntity.ok(result);
     }
 
     /**

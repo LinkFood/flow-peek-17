@@ -54,8 +54,10 @@ public class MarketPulseService {
     /**
      * Get flow timeline for a ticker
      * Buckets trades into time intervals for charting
+     *
+     * @param cumulative If true, returns running totals (for river lines). If false, returns per-bucket sums.
      */
-    public Map<String, Object> getFlowTimeline(String symbol, int windowHours, int bucketMinutes) {
+    public Map<String, Object> getFlowTimeline(String symbol, int windowHours, int bucketMinutes, boolean cumulative) {
         try {
             Instant now = Instant.now();
             Instant start = now.minus(windowHours, ChronoUnit.HOURS);
@@ -84,12 +86,28 @@ public class MarketPulseService {
 
         // Convert to response format
         List<Map<String, Object>> dataPoints = new ArrayList<>();
+        BigDecimal cumulativeCallPremium = BigDecimal.ZERO;
+        BigDecimal cumulativePutPremium = BigDecimal.ZERO;
+
         for (Map.Entry<Long, BucketData> entry : buckets.entrySet()) {
             Map<String, Object> point = new HashMap<>();
             point.put("timestamp", entry.getKey());
-            point.put("callPremium", entry.getValue().callPremium);
-            point.put("putPremium", entry.getValue().putPremium);
-            point.put("netFlow", entry.getValue().callPremium.subtract(entry.getValue().putPremium));
+
+            if (cumulative) {
+                // Running totals for river lines
+                cumulativeCallPremium = cumulativeCallPremium.add(entry.getValue().callPremium);
+                cumulativePutPremium = cumulativePutPremium.add(entry.getValue().putPremium);
+
+                point.put("callPremium", cumulativeCallPremium);
+                point.put("putPremium", cumulativePutPremium);
+                point.put("netFlow", cumulativeCallPremium.subtract(cumulativePutPremium));
+            } else {
+                // Per-bucket sums
+                point.put("callPremium", entry.getValue().callPremium);
+                point.put("putPremium", entry.getValue().putPremium);
+                point.put("netFlow", entry.getValue().callPremium.subtract(entry.getValue().putPremium));
+            }
+
             point.put("callCount", entry.getValue().callCount);
             point.put("putCount", entry.getValue().putCount);
             dataPoints.add(point);
@@ -99,6 +117,7 @@ public class MarketPulseService {
             response.put("symbol", symbol.toUpperCase());
             response.put("windowHours", windowHours);
             response.put("bucketMinutes", bucketMinutes);
+            response.put("cumulative", cumulative);
             response.put("dataPoints", dataPoints);
 
             return response;
@@ -108,6 +127,7 @@ public class MarketPulseService {
             response.put("symbol", symbol.toUpperCase());
             response.put("windowHours", windowHours);
             response.put("bucketMinutes", bucketMinutes);
+            response.put("cumulative", cumulative);
             response.put("dataPoints", new ArrayList<>());
             return response;
         }
