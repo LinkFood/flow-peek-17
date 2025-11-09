@@ -51,6 +51,22 @@ public class OptionFlow {
     @Column(name = "src", length = 50)
     private String src = "polygon";
 
+    // New fields for OTM validation and outcome tracking
+    @Column(name = "stock_price_at_trade", precision = 15, scale = 4)
+    private BigDecimal stockPriceAtTrade;
+
+    @Column(name = "is_otm")
+    private Boolean isOtm;
+
+    @Column(name = "distance_to_strike", precision = 8, scale = 4)
+    private BigDecimal distanceToStrike;
+
+    @Column(name = "is_0dte")
+    private Boolean is0dte;
+
+    @Column(name = "dte")
+    private Integer dte;
+
     public OptionFlow() {
     }
 
@@ -148,5 +164,45 @@ public class OptionFlow {
 
     public void setSrc(String src) {
         this.src = src;
+    }
+
+    public BigDecimal getStockPriceAtTrade() {
+        return stockPriceAtTrade;
+    }
+
+    public void setStockPriceAtTrade(BigDecimal stockPriceAtTrade) {
+        this.stockPriceAtTrade = stockPriceAtTrade;
+    }
+
+    public Boolean getIsOtm() {
+        return isOtm;
+    }
+
+    public void setIsOtm(Boolean isOtm) {
+        this.isOtm = isOtm;
+    }
+
+    public BigDecimal getDistanceToStrike() {
+        return distanceToStrike;
+    }
+
+    public void setDistanceToStrike(BigDecimal distanceToStrike) {
+        this.distanceToStrike = distanceToStrike;
+    }
+
+    public Boolean getIs0dte() {
+        return is0dte;
+    }
+
+    public void setIs0dte(Boolean is0dte) {
+        this.is0dte = is0dte;
+    }
+
+    public Integer getDte() {
+        return dte;
+    }
+
+    public void setDte(Integer dte) {
+        this.dte = dte;
     }
 }

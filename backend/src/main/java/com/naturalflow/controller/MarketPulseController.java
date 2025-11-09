@@ -6,10 +6,13 @@ import com.naturalflow.service.MarketPulseService;
 import com.naturalflow.service.SmartMoneyService;
 import com.naturalflow.service.HistoricalDataLoader;
 import com.naturalflow.service.ScheduledBackfillService;
+import com.naturalflow.service.StockPriceService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
+import java.time.*;
+import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -27,15 +30,18 @@ public class MarketPulseController {
     private final SmartMoneyService smartMoneyService;
     private final HistoricalDataLoader dataLoader;
     private final ScheduledBackfillService scheduledBackfillService;
+    private final StockPriceService stockPriceService;
 
-    public MarketPulseController(MarketPulseService pulseService, FlowService flowService, 
+    public MarketPulseController(MarketPulseService pulseService, FlowService flowService,
                                  SmartMoneyService smartMoneyService,
-                                 HistoricalDataLoader dataLoader, ScheduledBackfillService scheduledBackfillService) {
+                                 HistoricalDataLoader dataLoader, ScheduledBackfillService scheduledBackfillService,
+                                 StockPriceService stockPriceService) {
         this.pulseService = pulseService;
         this.flowService = flowService;
         this.smartMoneyService = smartMoneyService;
         this.dataLoader = dataLoader;
         this.scheduledBackfillService = scheduledBackfillService;
+        this.stockPriceService = stockPriceService;
     }
 
     /**
@@ -104,7 +110,7 @@ public class MarketPulseController {
     /**
      * GET /api/pulse/timeline?symbol=AAPL
      * Returns premium flow over time for a ticker
-     * Used for flow line charts
+     * Used for flow line charts (LIVE MODE - relative to now)
      */
     @GetMapping("/timeline")
     public ResponseEntity<Map<String, Object>> getTimeline(
@@ -114,6 +120,61 @@ public class MarketPulseController {
 
         Map<String, Object> timeline = pulseService.getFlowTimeline(symbol, windowHours, bucketMinutes);
         return ResponseEntity.ok(timeline);
+    }
+
+    /**
+     * GET /api/pulse/timeline-by-date?symbol=AAPL&date=2025-11-07
+     * Returns premium flow for a specific date (HISTORICAL MODE)
+     * Includes stock price overlay data
+     */
+    @GetMapping("/timeline-by-date")
+    public ResponseEntity<Map<String, Object>> getTimelineByDate(
+            @RequestParam String symbol,
+            @RequestParam String date,
+            @RequestParam(defaultValue = "09:30") String startTime,
+            @RequestParam(defaultValue = "16:00") String endTime,
+            @RequestParam(defaultValue = "15") int bucketMinutes) {
+
+        try {
+            LocalDate targetDate = LocalDate.parse(date, DateTimeFormatter.ISO_LOCAL_DATE);
+
+            // Parse times and create market hours window
+            ZonedDateTime start = targetDate.atTime(LocalTime.parse(startTime))
+                .atZone(ZoneId.of("America/New_York"));
+            ZonedDateTime end = targetDate.atTime(LocalTime.parse(endTime))
+                .atZone(ZoneId.of("America/New_York"));
+
+            // Get flow data for the date
+            List<com.naturalflow.model.OptionFlow> flows = flowService.getFlowBetween(
+                symbol.toUpperCase(),
+                start.toInstant(),
+                end.toInstant()
+            );
+
+            // Get price data for the date
+            List<com.naturalflow.model.StockPrice> prices = stockPriceService.getPricesInRange(
+                symbol.toUpperCase(),
+                start.toInstant(),
+                end.toInstant()
+            );
+
+            // Build response with both flow and price data
+            Map<String, Object> response = new HashMap<>();
+            response.put("symbol", symbol.toUpperCase());
+            response.put("date", date);
+            response.put("startTime", startTime);
+            response.put("endTime", endTime);
+            response.put("flows", flows);
+            response.put("prices", prices);
+            response.put("flowCount", flows.size());
+            response.put("priceCount", prices.size());
+
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            Map<String, Object> error = new HashMap<>();
+            error.put("error", e.getMessage());
+            return ResponseEntity.badRequest().body(error);
+        }
     }
 
     /**

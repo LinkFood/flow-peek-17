@@ -262,6 +262,19 @@ public class FlowService {
     }
 
     /**
+     * Get flow events between two timestamps
+     * Used for historical date queries (e.g., "show me Nov 7, 2025")
+     */
+    @Transactional(readOnly = true)
+    public List<OptionFlow> getFlowBetween(String symbol, Instant start, Instant end) {
+        return flowRepository.findByUnderlyingAndTsUtcBetween(
+            symbol.toUpperCase(),
+            start,
+            end
+        );
+    }
+
+    /**
      * Summary DTO for flow analysis
      */
     public static class FlowSummary {
