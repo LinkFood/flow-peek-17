@@ -10,6 +10,7 @@ import TickerView from "./pages/TickerView";
 import AIInsights from "./pages/AIInsights";
 import MarketPulse from "./pages/MarketPulse";
 import AdminDebug from "./pages/AdminDebug";
+import RiverDashboard from "./pages/RiverDashboard";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -23,7 +24,10 @@ const App = () => (
         <Routes>
           {/* New Terminal - No Sidebar, Full Screen */}
           <Route path="/" element={<Terminal />} />
-          
+
+          {/* River Dashboard - Full Screen, Date-Aware */}
+          <Route path="/river" element={<RiverDashboard />} />
+
           {/* Admin Debug Panel */}
           <Route path="/admin" element={<AdminDebug />} />
 

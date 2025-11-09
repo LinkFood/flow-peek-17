@@ -1,10 +1,12 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Activity, Database, Wifi, TrendingUp, RefreshCw } from "lucide-react";
+import { Activity, Database, Wifi, TrendingUp, RefreshCw, ArrowRight } from "lucide-react";
+import { DataLoader } from "@/components/DataLoader";
 
 const API_BASE = "https://web-production-43dc4.up.railway.app/api";
 
@@ -104,19 +106,30 @@ export default function AdminDebug() {
       <div className="max-w-7xl mx-auto space-y-6">
         <div className="flex items-center justify-between">
           <h1 className="text-3xl font-bold">System Debug Panel</h1>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              refetchHealth();
-              refetchStats();
-              refetchTrades();
-            }}
-          >
-            <RefreshCw className="w-4 h-4 mr-2" />
-            Refresh All
-          </Button>
+          <div className="flex gap-2">
+            <Link to="/river">
+              <Button variant="default">
+                Go to River Dashboard
+                <ArrowRight className="w-4 h-4 ml-2" />
+              </Button>
+            </Link>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                refetchHealth();
+                refetchStats();
+                refetchTrades();
+              }}
+            >
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Refresh All
+            </Button>
+          </div>
         </div>
+
+        {/* Data Loading Utility */}
+        <DataLoader />
 
         {/* System Health */}
         <Card className="p-6">

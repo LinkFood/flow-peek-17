@@ -332,15 +332,17 @@ export async function getSmartMoneyTrades(limit: number = 50): Promise<{
 
 /**
  * Get flow timeline for a ticker (for charting)
+ * @param cumulative - If true, returns running totals (for river lines). Default: true
  */
 export async function getFlowTimeline(
   symbol: string,
   windowHours: number = 24,
-  bucketMinutes: number = 60
+  bucketMinutes: number = 60,
+  cumulative: boolean = true
 ): Promise<TimelineResponse> {
   try {
     const response = await fetch(
-      `${PULSE_API_URL}/timeline?symbol=${symbol}&windowHours=${windowHours}&bucketMinutes=${bucketMinutes}`
+      `${PULSE_API_URL}/timeline?symbol=${symbol}&windowHours=${windowHours}&bucketMinutes=${bucketMinutes}&cumulative=${cumulative}`
     );
     if (!response.ok) {
       throw new Error(`Failed to fetch timeline: ${response.status}`);
@@ -348,6 +350,64 @@ export async function getFlowTimeline(
     return response.json();
   } catch (error) {
     console.error('Error fetching timeline:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get flow timeline for multiple tickers at once (efficient)
+ * Returns all 9 tickers' data in one API call
+ */
+export async function getMultiTickerTimeline(
+  symbols: string[],
+  windowHours: number = 24,
+  bucketMinutes: number = 15,
+  cumulative: boolean = true
+): Promise<{ [symbol: string]: TimelineResponse }> {
+  try {
+    const response = await fetch(
+      `${PULSE_API_URL}/timeline-multi?symbols=${symbols.join(',')}&windowHours=${windowHours}&bucketMinutes=${bucketMinutes}&cumulative=${cumulative}`
+    );
+    if (!response.ok) {
+      throw new Error(`Failed to fetch multi-ticker timeline: ${response.status}`);
+    }
+    return response.json();
+  } catch (error) {
+    console.error('Error fetching multi-ticker timeline:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get historical flow timeline for a specific date
+ * Used for date picker / time travel functionality
+ */
+export async function getTimelineByDate(
+  symbol: string,
+  date: string, // Format: YYYY-MM-DD
+  startTime: string = '09:30',
+  endTime: string = '16:00',
+  bucketMinutes: number = 15
+): Promise<{
+  symbol: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  flows: any[];
+  prices: any[];
+  flowCount: number;
+  priceCount: number;
+}> {
+  try {
+    const response = await fetch(
+      `${PULSE_API_URL}/timeline-by-date?symbol=${symbol}&date=${date}&startTime=${startTime}&endTime=${endTime}&bucketMinutes=${bucketMinutes}`
+    );
+    if (!response.ok) {
+      throw new Error(`Failed to fetch timeline by date: ${response.status}`);
+    }
+    return response.json();
+  } catch (error) {
+    console.error('Error fetching timeline by date:', error);
     throw error;
   }
 }
@@ -463,3 +523,62 @@ export async function getAggregatedSentimentTide(
     return [];
   }
 }
+
+// ===========================
+// Data Loading & Replay API
+// ===========================
+
+const REPLAY_API_URL = import.meta.env.VITE_API_URL?.replace('/api/flow', '/api/replay') || 'https://web-production-43dc4.up.railway.app/api/replay';
+
+/**
+ * Load historical stock prices for a specific date
+ * Use this to backload price data for testing
+ */
+export async function fetchHistoricalPrices(date: string): Promise<{
+  success: boolean;
+  date: string;
+  results: { [ticker: string]: number };
+}> {
+  try {
+    const response = await fetch(`${REPLAY_API_URL}/fetch-prices?date=${date}`, {
+      method: 'POST'
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to fetch historical prices: ${response.status}`);
+    }
+    return response.json();
+  } catch (error) {
+    console.error('Error fetching historical prices:', error);
+    throw error;
+  }
+}
+
+/**
+ * Load sample historical data for testing
+ * Generates synthetic flow data for N days back
+ */
+export async function loadSampleData(days: number = 7, clearFirst: boolean = false): Promise<{
+  success: boolean;
+  daysGenerated: number;
+  totalTrades: number;
+}> {
+  try {
+    const response = await fetch(
+      `${PULSE_API_URL}/load-historical-data?days=${days}&clearFirst=${clearFirst}`,
+      { method: 'POST' }
+    );
+    if (!response.ok) {
+      throw new Error(`Failed to load sample data: ${response.status}`);
+    }
+    return response.json();
+  } catch (error) {
+    console.error('Error loading sample data:', error);
+    throw error;
+  }
+}
+
+/**
+ * Constants for MAG7 + SPY + QQQ
+ */
+export const TRACKED_TICKERS = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA', 'TSLA', 'META', 'SPY', 'QQQ'] as const;
+export type TrackedTicker = typeof TRACKED_TICKERS[number];
