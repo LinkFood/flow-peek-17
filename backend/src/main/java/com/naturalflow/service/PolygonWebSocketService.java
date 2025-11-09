@@ -47,6 +47,8 @@ public class PolygonWebSocketService {
 
     private final FlowService flowService;
     private final SmartMoneyService smartMoneyService;
+    private final TradeValidationService validationService;
+    private final StockPriceService stockPriceService;
     private final ObjectMapper objectMapper;
     private final OkHttpClient httpClient;
 
@@ -55,11 +57,19 @@ public class PolygonWebSocketService {
     private boolean connected = false;
     private final List<String> pendingSubscriptions = new ArrayList<>();
     private int tradeCount = 0;
+    private int filteredCount = 0;
     private long lastLogTime = 0;
 
-    public PolygonWebSocketService(FlowService flowService, SmartMoneyService smartMoneyService) {
+    public PolygonWebSocketService(
+        FlowService flowService,
+        SmartMoneyService smartMoneyService,
+        TradeValidationService validationService,
+        StockPriceService stockPriceService
+    ) {
         this.flowService = flowService;
         this.smartMoneyService = smartMoneyService;
+        this.validationService = validationService;
+        this.stockPriceService = stockPriceService;
         this.objectMapper = new ObjectMapper();
         this.httpClient = new OkHttpClient.Builder()
             .readTimeout(0, TimeUnit.MILLISECONDS)
@@ -78,12 +88,12 @@ public class PolygonWebSocketService {
             return;
         }
 
-        log.info("🔌 Connecting to Polygon WebSocket for real-time options flow...");
+        log.info("🔌 Connecting to Massive.com REAL-TIME WebSocket for options flow...");
         prepareSubscriptions();
 
-        // Use Massive.com's delayed options WebSocket endpoint (Polygon data - 15-min delay)
+        // Use Massive.com's REAL-TIME options WebSocket endpoint (Options Advanced plan)
         Request request = new Request.Builder()
-            .url("wss://delayed.massive.com/options")
+            .url("wss://socket.massive.com/options")
             .build();
 
         webSocket = httpClient.newWebSocket(request, new WebSocketListener() {
@@ -201,17 +211,18 @@ public class PolygonWebSocketService {
         try {
             tradeCount++;
 
-            // Log trade count every 30 seconds
+            // Log stats every 30 seconds
             long now = System.currentTimeMillis();
             if (now - lastLogTime > 30000) {
-                log.info("📊 Received {} trades in last 30s", tradeCount);
+                log.info("📊 Last 30s: {} trades received, {} passed filters, {} filtered out",
+                    tradeCount, (tradeCount - filteredCount), filteredCount);
                 tradeCount = 0;
+                filteredCount = 0;
                 lastLogTime = now;
             }
 
             // Extract fields from Polygon WebSocket trade message
             // Format: {"ev":"T","sym":"O:AAPL251220C00190000","x":...,"p":...,"s":...,"t":...}
-
             String optionSymbol = trade.has("sym") ? trade.get("sym").asText() : null;
             if (optionSymbol == null || !optionSymbol.startsWith("O:")) {
                 return;
@@ -220,35 +231,99 @@ public class PolygonWebSocketService {
             // Parse option symbol to get underlying, expiry, strike, side
             String underlying = extractUnderlying(optionSymbol);
             if (underlying == null) {
+                filteredCount++;
+                return;
+            }
+
+            // Parse expiry
+            LocalDate expiry = parseExpiry(optionSymbol);
+            if (expiry == null) {
+                filteredCount++;
+                return;
+            }
+
+            // Parse strike and side
+            java.math.BigDecimal strike = parseStrike(optionSymbol);
+            String side = parseSide(optionSymbol);
+            if (strike == null || side == null) {
+                filteredCount++;
                 return;
             }
 
             // Calculate premium: price * size * 100 (options multiplier)
             double price = trade.has("p") ? trade.get("p").asDouble() : 0;
             int size = trade.has("s") ? trade.get("s").asInt() : 0;
-            double premium = price * size * 100;
+            java.math.BigDecimal premium = java.math.BigDecimal.valueOf(price * size * 100);
 
-            // Parse expiry to calculate DTE
-            LocalDate expiry = parseExpiry(optionSymbol);
-            if (expiry == null) {
+            // Build OptionFlow object for validation
+            com.naturalflow.model.OptionFlow flow = new com.naturalflow.model.OptionFlow();
+            flow.setOptionSymbol(optionSymbol);
+            flow.setUnderlying(underlying);
+            flow.setSide(side);
+            flow.setStrike(strike);
+            flow.setExpiry(expiry);
+            flow.setPremium(premium);
+            flow.setSize(size);
+            flow.setTsUtc(java.time.Instant.now());
+            flow.setRawJson(trade.toString());
+
+            // STEP 1: Get current stock price for OTM checking
+            java.math.BigDecimal stockPrice = stockPriceService.getCurrentPrice(underlying);
+            if (stockPrice == null) {
+                log.warn("⚠️ Cannot fetch price for {} - skipping OTM check", underlying);
+                filteredCount++;
                 return;
             }
 
-            int dte = (int) ChronoUnit.DAYS.between(LocalDate.now(), expiry);
+            // STEP 2: Validate through TradeValidationService
+            // This checks: Ticker, Premium ($50K+), DTE (0-30), OTM
+            if (!validationService.shouldIngestTrade(flow, stockPrice)) {
+                filteredCount++;
+                return;
+            }
 
-            // STORE ALL TRADES (for intraday flow lines - no filter)
+            // STEP 3: Enrich with calculated fields
+            validationService.enrichTrade(flow, stockPrice);
+
+            // STEP 4: Save to database
             String json = trade.toString();
             flowService.ingestFromRawJson(json);
 
-            // LOG if this is smart money ($50K+, 0-30 DTE)
-            if (premium >= MIN_PREMIUM && dte >= 0 && dte <= MAX_DTE) {
-                log.info("💰 Smart Money: {} ${} premium, {} DTE",
-                    optionSymbol, String.format("%.0f", premium), dte);
-            }
+            // Successfully ingested - log it
+            log.info("✅ Ingested: {} {} ${} premium, {} DTE, {}% OTM, stock at ${}",
+                flow.getOptionSymbol(),
+                flow.getSide(),
+                flow.getPremium().intValue(),
+                flow.getDte(),
+                flow.getDistanceToStrike(),
+                stockPrice);
 
         } catch (Exception e) {
             log.error("Error processing trade: {}", e.getMessage());
         }
+    }
+
+    private String parseSide(String optionSymbol) {
+        if (optionSymbol.contains("C")) return "CALL";
+        if (optionSymbol.contains("P")) return "PUT";
+        return null;
+    }
+
+    private java.math.BigDecimal parseStrike(String optionSymbol) {
+        try {
+            int cpIndex = optionSymbol.indexOf("C", 3);
+            if (cpIndex == -1) {
+                cpIndex = optionSymbol.indexOf("P", 3);
+            }
+            if (cpIndex > 0 && optionSymbol.length() >= cpIndex + 9) {
+                String strikeStr = optionSymbol.substring(cpIndex + 1, cpIndex + 9);
+                double strike = Double.parseDouble(strikeStr) / 1000.0;
+                return java.math.BigDecimal.valueOf(strike);
+            }
+        } catch (Exception e) {
+            // Parse failed
+        }
+        return null;
     }
 
     private String extractUnderlying(String optionSymbol) {
