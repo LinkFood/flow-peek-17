@@ -310,6 +310,32 @@ public class TimelineController {
     }
 
     /**
+     * GET /api/timeline/test-projection?days=7
+     * Test projection query to verify it doesn't access LOB
+     */
+    @GetMapping("/test-projection")
+    public ResponseEntity<Map<String, Object>> testProjection(
+            @RequestParam(defaultValue = "7") int days) {
+        try {
+            Instant cutoff = Instant.now().minus(days, java.time.temporal.ChronoUnit.DAYS);
+            List<Object[]> projections = flowRepository.findAllByTsUtcAfterForAggregation(cutoff);
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("rowCount", projections.size());
+            response.put("message", "Projection query works - no LOB access");
+
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            Map<String, Object> error = new HashMap<>();
+            error.put("success", false);
+            error.put("error", e.getMessage());
+            error.put("stackTrace", e.getClass().getName());
+            return ResponseEntity.badRequest().body(error);
+        }
+    }
+
+    /**
      * POST /api/timeline/backfill?days=7
      * Backfill aggregations for existing historical data
      * Use this once after enabling the aggregation system
@@ -345,6 +371,7 @@ public class TimelineController {
             error.put("success", false);
             error.put("error", e.getMessage());
             error.put("message", "Failed to backfill aggregations");
+            e.printStackTrace(); // Log full stack trace
             return ResponseEntity.badRequest().body(error);
         }
     }
