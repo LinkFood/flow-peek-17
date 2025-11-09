@@ -10,7 +10,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Real-time aggregation service
@@ -87,10 +91,15 @@ public class TimelineAggregationService {
 
     /**
      * Backfill aggregations from projection (avoids LOB access)
+     * Uses in-memory accumulation to avoid transaction size issues
      */
-    @Transactional
     public int backfillAggregationsFromProjection(List<Object[]> projections) {
         int count = 0;
+
+        // Use a map to accumulate buckets in memory before saving
+        // Key: "TICKER|YYYY-MM-DDTHH:MM", Value: FlowTimeline1m
+        Map<String, FlowTimeline1m> bucketMap = new HashMap<>();
+
         for (Object[] row : projections) {
             try {
                 // row: [id, tsUtc, underlying, side, premium]
@@ -109,10 +118,15 @@ public class TimelineAggregationService {
                     java.time.ZoneId.of("UTC")
                 ).truncatedTo(ChronoUnit.MINUTES);
 
-                // Find or create bucket
-                FlowTimeline1m bucket = timelineRepository
-                    .findByTickerAndBucketTime(underlying, bucketTime)
-                    .orElseGet(() -> new FlowTimeline1m(underlying, bucketTime));
+                // Create bucket key
+                String bucketKey = underlying + "|" + bucketTime.toString();
+
+                // Get or create bucket in memory
+                FlowTimeline1m bucket = bucketMap.get(bucketKey);
+                if (bucket == null) {
+                    bucket = new FlowTimeline1m(underlying, bucketTime);
+                    bucketMap.put(bucketKey, bucket);
+                }
 
                 // Add premium to appropriate side
                 if ("CALL".equals(side)) {
@@ -121,19 +135,48 @@ public class TimelineAggregationService {
                     bucket.addPutPremium(premium.doubleValue());
                 }
 
-                // Save updated bucket
-                timelineRepository.save(bucket);
-
                 count++;
-                if (count % 1000 == 0) {
-                    log.info("Backfilled {} trades", count);
+                if (count % 10000 == 0) {
+                    log.info("Processed {} trades, {} unique buckets", count, bucketMap.size());
                 }
             } catch (Exception e) {
-                log.error("Failed to backfill row: {}", e.getMessage());
+                log.error("Failed to process row: {}", e.getMessage());
             }
         }
-        log.info("Backfill complete: {} trades aggregated", count);
+
+        // Now save all buckets in one batch transaction
+        log.info("Saving {} aggregated buckets...", bucketMap.size());
+        saveBucketsInBatches(bucketMap.values(), 100);
+
+        log.info("Backfill complete: {} trades aggregated into {} buckets", count, bucketMap.size());
         return count;
+    }
+
+    /**
+     * Save buckets in small batches to avoid transaction size issues
+     */
+    @Transactional
+    private void saveBucketsInBatches(Collection<FlowTimeline1m> buckets, int batchSize) {
+        List<FlowTimeline1m> batch = new ArrayList<>();
+        int saved = 0;
+
+        for (FlowTimeline1m bucket : buckets) {
+            batch.add(bucket);
+
+            if (batch.size() >= batchSize) {
+                timelineRepository.saveAll(batch);
+                saved += batch.size();
+                log.info("Saved {} / {} buckets", saved, buckets.size());
+                batch.clear();
+            }
+        }
+
+        // Save remaining buckets
+        if (!batch.isEmpty()) {
+            timelineRepository.saveAll(batch);
+            saved += batch.size();
+            log.info("Saved {} / {} buckets (final batch)", saved, buckets.size());
+        }
     }
 
     /**
