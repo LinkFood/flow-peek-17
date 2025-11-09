@@ -12,12 +12,13 @@ import { BarChart3, Activity, TrendingUp, Target } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { StrikeScorecard } from "@/components/StrikeScorecard";
+import { DEFAULT_TIME_WINDOW, getLookbackMinutes, getTimeWindowHours, getTimeWindowLabel } from "@/lib/timeWindows";
 
 const TickerView = () => {
   const { symbol } = useParams<{ symbol: string }>();
   const [ticker, setTicker] = useState(symbol || "QQQ");
   const [minPremium, setMinPremium] = useState("50000");
-  const [timeWindow, setTimeWindow] = useState("1d");
+  const [timeWindow, setTimeWindow] = useState(DEFAULT_TIME_WINDOW);
 
   // Sync ticker with URL param
   useEffect(() => {
@@ -26,9 +27,10 @@ const TickerView = () => {
     }
   }, [symbol]);
 
-  // Convert time window to minutes for building endpoint
-  const lookbackMinutes = timeWindow === "1d" ? 1440 : timeWindow === "1w" ? 10080 : 1440;
-  const timeWindowHours = timeWindow === "1d" ? 24 : timeWindow === "1w" ? 168 : 24;
+  // Convert time window selections to query values
+  const lookbackMinutes = getLookbackMinutes(timeWindow);
+  const timeWindowHours = getTimeWindowHours(timeWindow);
+  const timeWindowLabel = getTimeWindowLabel(timeWindow);
 
   // Fetch position building data
   const { data: buildingFlows, isLoading: isLoadingBuilding } = useQuery({
@@ -317,7 +319,7 @@ const TickerView = () => {
           <div className="p-4 border-b border-border">
             <h3 className="text-lg font-semibold text-foreground">Position Building Flows</h3>
             <p className="text-sm text-muted-foreground mt-1">
-              Flows with premium ≥ {formatPremium(parseInt(minPremium) || 50000)} in last {timeWindow}
+              Flows with premium ≥ {formatPremium(parseInt(minPremium) || 50000)} in last {timeWindowLabel}
             </p>
           </div>
           <div className="overflow-x-auto">

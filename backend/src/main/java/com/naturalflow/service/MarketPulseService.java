@@ -162,62 +162,69 @@ public class MarketPulseService {
             List<Map<String, Object>> unusual = new ArrayList<>();
 
             for (String ticker : Constants.MAG7_TICKERS) {
-            // Get recent flow (last hour)
-            FlowService.FlowSummary recent = flowService.getSummary(ticker, 1);
+                FlowService.FlowSummary recent = flowService.getSummary(ticker, 1);
 
-            // Get historical average (last 30 days, excluding recent hour)
-            Instant now = Instant.now();
-            Instant oneDayAgo = now.minus(1, ChronoUnit.DAYS);
-            Instant thirtyDaysAgo = now.minus(30, ChronoUnit.DAYS);
+                Instant now = Instant.now();
+                Instant oneDayAgo = now.minus(1, ChronoUnit.DAYS);
+                Instant thirtyDaysAgo = now.minus(30, ChronoUnit.DAYS);
 
-            List<OptionFlow> historical = repository.findByUnderlyingAndTsUtcBetween(
-                ticker,
-                thirtyDaysAgo,
-                oneDayAgo
-            );
+                List<OptionFlow> historical = repository.findByUnderlyingAndTsUtcBetween(
+                    ticker,
+                    thirtyDaysAgo,
+                    oneDayAgo
+                );
 
-            if (historical.isEmpty()) continue;
-
-            // Calculate historical hourly average
-            long hourCount = 30 * 24; // 30 days * 24 hours
-            BigDecimal historicalCallPerHour = historical.stream()
-                .filter(f -> "CALL".equals(f.getSide()))
-                .map(OptionFlow::getPremium)
-                .reduce(BigDecimal.ZERO, BigDecimal::add)
-                .divide(BigDecimal.valueOf(hourCount), 2, RoundingMode.HALF_UP);
-
-            BigDecimal historicalPutPerHour = historical.stream()
-                .filter(f -> "PUT".equals(f.getSide()))
-                .map(OptionFlow::getPremium)
-                .reduce(BigDecimal.ZERO, BigDecimal::add)
-                .divide(BigDecimal.valueOf(hourCount), 2, RoundingMode.HALF_UP);
-
-            // Check if recent is unusual (3x+ historical average)
-            boolean unusualCalls = recent.getTotalCallPremium().compareTo(historicalCallPerHour.multiply(new BigDecimal("3"))) > 0;
-            boolean unusualPuts = recent.getTotalPutPremium().compareTo(historicalPutPerHour.multiply(new BigDecimal("3"))) > 0;
-
-            if (unusualCalls || unusualPuts) {
-                Map<String, Object> activity = new HashMap<>();
-                activity.put("ticker", ticker);
-                activity.put("recentCallPremium", recent.getTotalCallPremium());
-                activity.put("recentPutPremium", recent.getTotalPutPremium());
-                activity.put("avgCallPremium", historicalCallPerHour);
-                activity.put("avgPutPremium", historicalPutPerHour);
-                activity.put("unusualCalls", unusualCalls);
-                activity.put("unusualPuts", unusualPuts);
-
-                if (unusualCalls) {
-                    activity.put("callMultiple", recent.getTotalCallPremium()
-                        .divide(historicalCallPerHour, 2, RoundingMode.HALF_UP));
-                }
-                if (unusualPuts) {
-                    activity.put("putMultiple", recent.getTotalPutPremium()
-                        .divide(historicalPutPerHour, 2, RoundingMode.HALF_UP));
+                if (historical.isEmpty()) {
+                    continue;
                 }
 
-                unusual.add(activity);
+                long hourCount = 30 * 24; // 30 days * 24 hours
+                BigDecimal historicalCallPerHour = historical.stream()
+                    .filter(f -> "CALL".equals(f.getSide()))
+                    .map(OptionFlow::getPremium)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add)
+                    .divide(BigDecimal.valueOf(hourCount), 2, RoundingMode.HALF_UP);
+
+                BigDecimal historicalPutPerHour = historical.stream()
+                    .filter(f -> "PUT".equals(f.getSide()))
+                    .map(OptionFlow::getPremium)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add)
+                    .divide(BigDecimal.valueOf(hourCount), 2, RoundingMode.HALF_UP);
+
+                BigDecimal recentCallPremium = recent.getTotalCallPremium();
+                BigDecimal recentPutPremium = recent.getTotalPutPremium();
+
+                boolean hasCallBaseline = historicalCallPerHour.compareTo(BigDecimal.ZERO) > 0;
+                boolean hasPutBaseline = historicalPutPerHour.compareTo(BigDecimal.ZERO) > 0;
+
+                boolean unusualCalls = hasCallBaseline
+                    ? recentCallPremium.compareTo(historicalCallPerHour.multiply(new BigDecimal("3"))) > 0
+                    : recentCallPremium.compareTo(BigDecimal.ZERO) > 0;
+
+                boolean unusualPuts = hasPutBaseline
+                    ? recentPutPremium.compareTo(historicalPutPerHour.multiply(new BigDecimal("3"))) > 0
+                    : recentPutPremium.compareTo(BigDecimal.ZERO) > 0;
+
+                if (unusualCalls || unusualPuts) {
+                    Map<String, Object> activity = new HashMap<>();
+                    activity.put("ticker", ticker);
+                    activity.put("recentCallPremium", recentCallPremium);
+                    activity.put("recentPutPremium", recentPutPremium);
+                    activity.put("avgCallPremium", historicalCallPerHour);
+                    activity.put("avgPutPremium", historicalPutPerHour);
+                    activity.put("unusualCalls", unusualCalls);
+                    activity.put("unusualPuts", unusualPuts);
+
+                    if (unusualCalls && hasCallBaseline) {
+                        activity.put("callMultiple", safeDivide(recentCallPremium, historicalCallPerHour));
+                    }
+                    if (unusualPuts && hasPutBaseline) {
+                        activity.put("putMultiple", safeDivide(recentPutPremium, historicalPutPerHour));
+                    }
+
+                    unusual.add(activity);
+                }
             }
-        }
 
             return unusual.stream()
                 .sorted((a, b) -> {
@@ -228,7 +235,6 @@ public class MarketPulseService {
                 .limit(limit)
                 .collect(Collectors.toList());
         } catch (Exception e) {
-            // Return empty list if insufficient data or error
             return new ArrayList<>();
         }
     }
@@ -252,6 +258,13 @@ public class MarketPulseService {
         dto.put("size", flow.getSize());
         dto.put("optionSymbol", flow.getOptionSymbol());
         return dto;
+    }
+
+    private BigDecimal safeDivide(BigDecimal numerator, BigDecimal denominator) {
+        if (denominator == null || denominator.compareTo(BigDecimal.ZERO) == 0) {
+            return BigDecimal.ZERO;
+        }
+        return numerator.divide(denominator, 2, RoundingMode.HALF_UP);
     }
 
     /**

@@ -1,6 +1,6 @@
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { TIME_WINDOWS } from "@/lib/timeWindows";
 
 interface FilterBarProps {
   ticker: string;
@@ -50,17 +50,14 @@ export const FilterBar = ({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="1h">1 Hour</SelectItem>
-              <SelectItem value="4h">4 Hours</SelectItem>
-              <SelectItem value="1d">1 Day</SelectItem>
-              <SelectItem value="5d">5 Days</SelectItem>
+              {Object.entries(TIME_WINDOWS).map(([value, config]) => (
+                <SelectItem key={value} value={value}>
+                  {config.label}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>
-
-        <Button variant="default" className="ml-auto">
-          Apply Filters
-        </Button>
       </div>
     </div>
   );

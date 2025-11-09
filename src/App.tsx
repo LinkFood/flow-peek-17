@@ -3,7 +3,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { Sidebar } from "./components/Sidebar";
+import { LegacyLayout } from "@/layouts/LegacyLayout";
 import Terminal from "./pages/Terminal";
 import Dashboard from "./pages/Dashboard";
 import TickerView from "./pages/TickerView";
@@ -28,18 +28,15 @@ const App = () => (
           <Route path="/admin" element={<AdminDebug />} />
 
           {/* Legacy Pages - With Sidebar */}
-          <Route path="/legacy/*" element={
-            <div className="flex min-h-screen w-full">
-              <Sidebar />
-              <Routes>
-                <Route path="/dashboard" element={<Dashboard />} />
-                <Route path="/market-pulse" element={<MarketPulse />} />
-                <Route path="/ticker" element={<TickerView />} />
-                <Route path="/ticker/:symbol" element={<TickerView />} />
-                <Route path="/ai-insights" element={<AIInsights />} />
-              </Routes>
-            </div>
-          } />
+          <Route path="/legacy" element={<LegacyLayout />}>
+            <Route index element={<Dashboard />} />
+            <Route path="dashboard" element={<Dashboard />} />
+            <Route path="market-pulse" element={<MarketPulse />} />
+            <Route path="ticker" element={<TickerView />} />
+            <Route path="ticker/:symbol" element={<TickerView />} />
+            <Route path="ai-insights" element={<AIInsights />} />
+            <Route path="*" element={<NotFound />} />
+          </Route>
 
           <Route path="*" element={<NotFound />} />
         </Routes>

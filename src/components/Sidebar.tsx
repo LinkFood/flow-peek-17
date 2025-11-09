@@ -3,10 +3,10 @@ import { LayoutDashboard, TrendingUp, MessageSquare, Activity } from "lucide-rea
 import { cn } from "@/lib/utils";
 
 const navItems = [
-  { title: "Dashboard", icon: LayoutDashboard, path: "/" },
-  { title: "MAG7 Pulse", icon: Activity, path: "/market-pulse" },
-  { title: "Ticker View", icon: TrendingUp, path: "/ticker" },
-  { title: "AI Insights", icon: MessageSquare, path: "/ai-insights" },
+  { title: "Dashboard", icon: LayoutDashboard, path: "dashboard" },
+  { title: "MAG7 Pulse", icon: Activity, path: "market-pulse" },
+  { title: "Ticker View", icon: TrendingUp, path: "ticker" },
+  { title: "AI Insights", icon: MessageSquare, path: "ai-insights" },
 ];
 
 export const Sidebar = () => {
@@ -23,6 +23,7 @@ export const Sidebar = () => {
             <li key={item.path}>
               <NavLink
                 to={item.path}
+                end={item.path === "dashboard"}
                 className={({ isActive }) =>
                   cn(
                     "flex items-center gap-3 px-4 py-3 rounded-lg transition-all",

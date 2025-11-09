@@ -8,14 +8,15 @@ import { Badge } from "@/components/ui/badge";
 import { formatPremium, formatTime, formatDate } from "@/lib/mockData";
 import { getLatestFlow, getSummary, convertToOptionFlow } from "@/lib/api";
 import { Skeleton } from "@/components/ui/skeleton";
+import { DEFAULT_TIME_WINDOW, getTimeWindowHours } from "@/lib/timeWindows";
 
 const Dashboard = () => {
   const [ticker, setTicker] = useState("QQQ");
   const [minPremium, setMinPremium] = useState("");
-  const [timeWindow, setTimeWindow] = useState("1d");
+  const [timeWindow, setTimeWindow] = useState(DEFAULT_TIME_WINDOW);
 
   // Convert time window to hours
-  const timeWindowHours = timeWindow === "1d" ? 24 : timeWindow === "1w" ? 168 : 24;
+  const timeWindowHours = getTimeWindowHours(timeWindow);
 
   // Fetch latest flow data
   const { data: latestData, isLoading: isLoadingLatest } = useQuery({

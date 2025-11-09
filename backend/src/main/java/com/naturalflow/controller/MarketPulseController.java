@@ -112,13 +112,6 @@ public class MarketPulseController {
             @RequestParam(defaultValue = "24") int windowHours,
             @RequestParam(defaultValue = "60") int bucketMinutes) {
 
-        // Verify it's a MAG7 stock
-        if (!Constants.MAG7_TICKERS.contains(symbol.toUpperCase())) {
-            Map<String, Object> error = new HashMap<>();
-            error.put("error", "Only MAG7 stocks supported: " + String.join(", ", Constants.MAG7_TICKERS));
-            return ResponseEntity.badRequest().body(error);
-        }
-
         Map<String, Object> timeline = pulseService.getFlowTimeline(symbol, windowHours, bucketMinutes);
         return ResponseEntity.ok(timeline);
     }

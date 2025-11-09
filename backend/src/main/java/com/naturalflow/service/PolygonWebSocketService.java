@@ -79,10 +79,11 @@ public class PolygonWebSocketService {
         }
 
         log.info("🔌 Connecting to Polygon WebSocket for real-time options flow...");
+        prepareSubscriptions();
 
-        // Use Polygon's delayed options WebSocket endpoint (15-min delay)
+        // Use Massive.com's delayed options WebSocket endpoint (Polygon data - 15-min delay)
         Request request = new Request.Builder()
-            .url("wss://delayed.polygon.io/options")
+            .url("wss://delayed.massive.com/options")
             .build();
 
         webSocket = httpClient.newWebSocket(request, new WebSocketListener() {
@@ -125,10 +126,6 @@ public class PolygonWebSocketService {
             }
         });
 
-        // Subscribe to MAG7 + SPY + QQQ options
-        for (String ticker : TRACKED_TICKERS) {
-            pendingSubscriptions.add("T.O:" + ticker + "*");
-        }
     }
 
     private void authenticate(WebSocket ws) {
@@ -196,7 +193,7 @@ public class PolygonWebSocketService {
         );
 
         ws.send(subscribeMessage);
-        log.info("📡 Subscribed to 9 tickers options flow: {}", pendingSubscriptions);
+        log.info("📡 Subscribed to options flow channels: {}", pendingSubscriptions);
         pendingSubscriptions.clear();
     }
 
@@ -312,5 +309,12 @@ public class PolygonWebSocketService {
                 connected, authenticated, enabled);
         }
         return status;
+    }
+
+    private void prepareSubscriptions() {
+        pendingSubscriptions.clear();
+        for (String ticker : TRACKED_TICKERS) {
+            pendingSubscriptions.add(String.format("T.O:%s*", ticker));
+        }
     }
 }
