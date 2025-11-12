@@ -125,17 +125,22 @@ public class ScheduledBackfillService {
      * Uses Polygon Reference API: GET /v3/reference/options/contracts
      */
     private List<String> listContractsForUnderlying(String underlying, LocalDate asOf) {
-        return listContractsForUnderlyingWithHost(underlying, asOf, polygonRefBaseUrl, false);
+        // Fetch BOTH calls and puts separately to ensure we get both types
+        List<String> allContracts = new ArrayList<>();
+        allContracts.addAll(listContractsForUnderlyingWithHost(underlying, asOf, polygonRefBaseUrl, false, "call"));
+        allContracts.addAll(listContractsForUnderlyingWithHost(underlying, asOf, polygonRefBaseUrl, false, "put"));
+        return allContracts;
     }
 
-    private List<String> listContractsForUnderlyingWithHost(String underlying, LocalDate asOf, String baseUrl, boolean isRetry) {
+    private List<String> listContractsForUnderlyingWithHost(String underlying, LocalDate asOf, String baseUrl, boolean isRetry, String contractType) {
         try {
             String url = String.format(
-                "%s/v3/reference/options/contracts?underlying_ticker=%s&as_of=%s&expired=false&order=asc&sort=expiration_date&limit=%d&apiKey=%s",
+                "%s/v3/reference/options/contracts?underlying_ticker=%s&as_of=%s&contract_type=%s&expired=false&order=asc&sort=expiration_date&limit=%d&apiKey=%s",
                 baseUrl,
                 underlying,
                 asOf.format(DateTimeFormatter.ISO_LOCAL_DATE),
-                contractsPerTicker * 2,
+                contractType,
+                contractsPerTicker,
                 apiKey
             );
 
@@ -156,7 +161,7 @@ public class ScheduledBackfillService {
                     // Retry on api.polygon.io if we got 404 on delayed host and haven't retried yet
                     if (response.code() == 404 && !isRetry && !baseUrl.contains("api.polygon.io")) {
                         log.info("Retrying contract listing for {} on api.polygon.io", underlying);
-                        return listContractsForUnderlyingWithHost(underlying, asOf, "https://api.polygon.io", true);
+                        return listContractsForUnderlyingWithHost(underlying, asOf, "https://api.polygon.io", true, contractType);
                     }
                     
                     return new ArrayList<>();

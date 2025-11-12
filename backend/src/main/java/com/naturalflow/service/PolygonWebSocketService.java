@@ -304,9 +304,16 @@ public class PolygonWebSocketService {
     }
 
     private String parseSide(String optionSymbol) {
-        if (optionSymbol.contains("C")) return "CALL";
-        if (optionSymbol.contains("P")) return "PUT";
-        return null;
+        // Format: O:AAPL251220C00190000 or O:AAPL251220P00190000
+        // Find the C/P indicator AFTER the date (6 digits)
+        // Start searching from position 3 to skip "O:" prefix
+        int cpIndex = optionSymbol.indexOf("C", 3);
+        if (cpIndex == -1) {
+            cpIndex = optionSymbol.indexOf("P", 3);
+            return (cpIndex > 0) ? "PUT" : null;
+        } else {
+            return "CALL";
+        }
     }
 
     private java.math.BigDecimal parseStrike(String optionSymbol) {
